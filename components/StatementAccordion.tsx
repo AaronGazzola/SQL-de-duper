@@ -1,5 +1,5 @@
+// components/StatementAccordion.tsx
 "use client";
-
 import FilterBar from "@/components/FilterBar";
 import { StatementItem } from "@/components/StatementItem";
 import { Accordion } from "@/components/ui/accordion";
@@ -9,19 +9,6 @@ import { useMemo } from "react";
 
 export function StatementAccordion() {
   const { parseResults, filters } = useStore();
-
-  // Extract all statement types from the parsed results
-  const availableTypes = useMemo(() => {
-    const typeSet = new Set<string>();
-    parseResults.forEach((file) => {
-      file.statements.forEach((statement) => {
-        if (statement.type) {
-          typeSet.add(statement.type);
-        }
-      });
-    });
-    return Array.from(typeSet);
-  }, [parseResults]);
 
   // Combine all statements and unparsed sections
   const allItems = useMemo(() => {
@@ -34,7 +21,6 @@ export function StatementAccordion() {
           fileName: file.filename,
         });
       });
-
       // Add unparsed sections
       file.unparsedSections.forEach((section) => {
         items.push({
@@ -49,7 +35,7 @@ export function StatementAccordion() {
   // Apply filters to get filtered items
   const filteredItems = useMemo(() => {
     return allItems.filter((item) => {
-      // For unparsed sections, we always show them
+      // For unparsed sections, we always show them if no filters are applied
       if ("parsed" in item) {
         // Filter by search term on content
         if (
@@ -82,8 +68,7 @@ export function StatementAccordion() {
 
   return (
     <div className="w-full max-w-2xl mx-auto relative">
-      <FilterBar availableTypes={availableTypes} />
-
+      <FilterBar />
       <Accordion
         type="single"
         collapsible
@@ -92,7 +77,7 @@ export function StatementAccordion() {
         {filteredItems.length > 0 ? (
           filteredItems.map((item, index) => (
             <StatementItem
-              key={index}
+              key={item.id}
               item={item}
               index={index}
             />

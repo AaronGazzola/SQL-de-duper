@@ -1,4 +1,5 @@
 // store/store.ts
+import { SQLParser } from "@/services/SQLParser";
 import {
   File,
   Filter,
@@ -86,6 +87,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   parseFiles: async (files) => {
     set({ isProcessing: true });
+    const sqlParser = new SQLParser();
 
     try {
       const parseResults: ParsedFile[] = await Promise.all(
@@ -102,8 +104,10 @@ export const useStore = create<StoreState>((set, get) => ({
             },
           }));
 
-          // Simulate parsing delay with progress updates
           const fileContent = await file.text();
+
+          // Use SQLParser to parse the file
+          const parsedFile = sqlParser.parse(fileContent, file.name);
 
           // Update to 100% when done
           set((state) => ({
@@ -117,26 +121,7 @@ export const useStore = create<StoreState>((set, get) => ({
             },
           }));
 
-          return {
-            filename: file.name,
-            originalContent: fileContent,
-            statements: [], // In a real app, this would be populated with parsed statements
-            unparsedSections: [
-              {
-                id: crypto.randomUUID(),
-                content: fileContent,
-                startIndex: 0,
-                endIndex: fileContent.length,
-                parsed: false,
-                fileName: file.name,
-              },
-            ],
-            stats: {
-              total: 1,
-              parsed: 0,
-              percentage: 0,
-            },
-          };
+          return parsedFile;
         })
       );
 

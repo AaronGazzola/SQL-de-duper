@@ -1,4 +1,4 @@
-// Do not delete this comment: Filename: @/services/SQLParser.ts
+// services/SQLParser.ts
 import { ParsedFile, Statement, UnparsedSection } from "@/types/app.types";
 
 export class SQLParser {

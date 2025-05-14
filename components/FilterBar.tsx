@@ -1,5 +1,5 @@
+// components/FilterBar.tsx
 "use client";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,13 +9,26 @@ import { getDisplayName } from "@/lib/utils";
 import { useStore } from "@/store/store";
 import { Filter } from "@/types/app.types";
 import { Search, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-export function FilterBar({ availableTypes }: { availableTypes: string[] }) {
-  const { filters, setFilters } = useStore();
+export function FilterBar() {
+  const { filters, setFilters, parseResults } = useStore();
 
-  const handleFilterChange = (newFilters: Filter) => {
-    setFilters(newFilters);
+  // Extract all statement types from the parsed results
+  const availableTypes = useMemo(() => {
+    const typeSet = new Set<string>();
+    parseResults.forEach((file) => {
+      file.statements.forEach((statement) => {
+        if (statement.type) {
+          typeSet.add(statement.type);
+        }
+      });
+    });
+    return Array.from(typeSet);
+  }, [parseResults]);
+
+  const handleFilterChange = (newFilters: Partial<Filter>) => {
+    setFilters({ ...filters, ...newFilters });
   };
 
   const [searchInput, setSearchInput] = useState(filters.searchTerm);
@@ -26,14 +39,12 @@ export function FilterBar({ availableTypes }: { availableTypes: string[] }) {
       : [...filters.types, type];
 
     handleFilterChange({
-      ...filters,
       types: newTypes,
     });
   };
 
   const handleLatestOnlyToggle = () => {
     handleFilterChange({
-      ...filters,
       latestOnly: !filters.latestOnly,
     });
   };
@@ -45,7 +56,6 @@ export function FilterBar({ availableTypes }: { availableTypes: string[] }) {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleFilterChange({
-      ...filters,
       searchTerm: searchInput,
     });
   };
@@ -53,14 +63,13 @@ export function FilterBar({ availableTypes }: { availableTypes: string[] }) {
   const handleClearSearch = () => {
     setSearchInput("");
     handleFilterChange({
-      ...filters,
       searchTerm: "",
     });
   };
 
   const handleClearFilters = () => {
     setSearchInput("");
-    handleFilterChange({
+    setFilters({
       types: [],
       latestOnly: true,
       searchTerm: "",

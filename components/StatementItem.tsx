@@ -1,5 +1,5 @@
+// components/StatementItem.tsx
 "use client";
-
 import {
   AccordionContent,
   AccordionItem,
@@ -17,7 +17,6 @@ import { getDisplayName } from "@/lib/utils";
 import { useStore } from "@/store/store";
 import { Statement, UnparsedSection } from "@/types/app.types";
 import { Edit } from "lucide-react";
-import { useMemo } from "react";
 
 export function StatementItem({
   item,
@@ -27,22 +26,11 @@ export function StatementItem({
   index: number;
 }) {
   const { setEditorDialogOpen, setRawEditorSQL } = useStore();
-
   // Determine if this is a parsed statement or unparsed section
   const isParsed = !("parsed" in item);
 
-  // Format content for display
-  const displayContent = useMemo(() => {
-    // Limit to first few lines
-    const lines = item.content.split("\n").slice(0, 5);
-    return (
-      lines.join("\n") +
-      (lines.length < item.content.split("\n").length ? "..." : "")
-    );
-  }, [item.content]);
-
   const handleEdit = () => {
-    setRawEditorSQL((item as Statement).content);
+    setRawEditorSQL(item.content);
     setEditorDialogOpen(true);
   };
 
@@ -90,7 +78,6 @@ export function StatementItem({
             </TooltipProvider>
           </div>
         </AccordionTrigger>
-
         <div className="flex gap-2 absolute right-4 top-1/2 transform -translate-y-1/2">
           <Button
             variant="ghost"
@@ -102,10 +89,9 @@ export function StatementItem({
           </Button>
         </div>
       </div>
-
       <AccordionContent className="p-4 border-t bg-gray-50">
         <pre className="text-sm overflow-x-auto p-2 bg-white border rounded-md">
-          {displayContent}
+          {item.content}
         </pre>
       </AccordionContent>
     </AccordionItem>

@@ -2,9 +2,10 @@
 "use client";
 import FileDropZone from "@/components/FileDropZone";
 import FileList from "@/components/FileList";
-import ParseButton from "@/components/ParseButton";
+import { Button } from "@/components/ui/button";
 import { useStore } from "@/store/store";
 import { File as AppFile } from "@/types/app.types";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -73,11 +74,21 @@ export function FileUpload({ onComplete }: FileUploadProps) {
         />
       )}
       <div className="flex justify-center mt-4">
-        <ParseButton
+        <Button
+          size="lg"
           onClick={handleParse}
-          disabled={files.length === 0 || isProcessing}
-          isProcessing={isProcessing}
-        />
+          disabled={isProcessing || !files.length}
+          className="min-w-[160px]"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Parsing...
+            </>
+          ) : (
+            "Parse Files"
+          )}
+        </Button>
       </div>
     </div>
   );
