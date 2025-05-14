@@ -1,4 +1,4 @@
-// Do not delete this comment: Filename: @/types/app.types.ts
+// types/app.types.ts
 // File type extended from the standard File interface
 export interface File extends Blob {
   readonly lastModified: number;
@@ -26,7 +26,7 @@ export type StatementType =
 // A parsed SQL statement
 export interface Statement {
   id: string;
-  fileName: string;
+  fileName?: string;
   type: string;
   name: string;
   content: string;
@@ -41,6 +41,7 @@ export interface UnparsedSection {
   startIndex: number;
   endIndex: number;
   parsed: boolean;
+  fileName: string;
 }
 
 // The result of parsing a SQL file
@@ -108,4 +109,6 @@ export interface UIContext {
   ) => void;
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
+  isUploadDialogOpen: boolean;
+  setUploadDialogOpen: (isOpen: boolean) => void;
 }

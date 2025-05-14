@@ -115,6 +115,7 @@ export class SQLParser {
             startIndex: lastMatchEnd,
             endIndex: match.index,
             parsed: false,
+            fileName: filename,
           });
         }
       }
@@ -133,6 +134,7 @@ export class SQLParser {
           startIndex: lastMatchEnd,
           endIndex: fileContent.length,
           parsed: false,
+          fileName: filename,
         });
       }
     }
