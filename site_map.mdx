@@ -1,0 +1,473 @@
+# SQL Migration Parser UX and Component Structure
+
+## User Flow Diagram
+
+```
+┌───────────────┐        ┌──────────────┐        ┌────────────────┐        ┌────────────────┐
+│               │        │              │        │                │        │                │
+│  File Upload  │───────▶│  Parse Report│───────▶│ Manual Parsing │───────▶│  Statement List│
+│               │        │              │        │                │        │                │
+└───────────────┘        └──────────────┘        └────────────────┘        └────────────────┘
+                                                                                    │
+                                                                                    │
+                                                                                    ▼
+                                                                           ┌────────────────┐
+                                                                           │                │
+                                                                           │  Export SQL    │
+                                                                           │                │
+                                                                           └────────────────┘
+```
+
+## Component Structure
+
+### 1. File Upload (`/components/upload/FileUpload.tsx`)
+
+![File Upload Screen](https://via.placeholder.com/800x400)
+
+**Description:** Drag and drop area for SQL migration files with progress indicator.
+
+**Key Interactive Elements:**
+
+- Drag and drop zone
+- File browser button
+- File list with metadata display
+- Parse button
+
+**Sub-components:**
+
+- `FileDropZone.tsx` - Handles drag/drop events
+- `FileList.tsx` - Displays uploaded files
+- `ParseButton.tsx` - Triggers parsing process
+
+**State Management:**
+
+- Uploaded files
+- Processing state
+
+```tsx
+// Example structure
+const FileUpload = () => {
+  const [files, setFiles] = useState<File[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleParse = async () => {
+    setIsProcessing(true);
+    // parsing logic
+    // navigate to report when complete
+  };
+
+  return (
+    <div className="upload-container">
+      <FileDropZone onFilesDrop={setFiles} />
+      <FileList
+        files={files}
+        onRemove={(index) => {
+          /* remove logic */
+        }}
+      />
+      <ParseButton
+        onClick={handleParse}
+        disabled={files.length === 0 || isProcessing}
+      />
+    </div>
+  );
+};
+```
+
+### 2. Parse Report (`/components/report/ParseReport.tsx`)
+
+![Parse Report Screen](https://via.placeholder.com/800x400)
+
+**Description:** Overview of parsing results with success rates and navigation to unparsed statements.
+
+**Key Interactive Elements:**
+
+- File-by-file parse statistics
+- Progress bars for each file
+- "Review Unparsed" button
+- "Continue to Statements" button
+
+**Sub-components:**
+
+- `FileParseStats.tsx` - Shows stats for each file
+- `ParseProgressBar.tsx` - Visual indicator of parse success
+- `UnparsedSummary.tsx` - Shows count of unparsed statements
+
+**State Management:**
+
+- Parse results
+- Navigation state
+
+```tsx
+// Example structure
+const ParseReport = ({ parseResults }: { parseResults: ParsedFile[] }) => {
+  const totalStats = useMemo(() => {
+    // calculate overall statistics
+    return { total: 0, parsed: 0, percentage: 0 };
+  }, [parseResults]);
+
+  return (
+    <div className="parse-report">
+      <h1>Parse Results</h1>
+      <div className="overall-stats">
+        <ParseProgressBar percentage={totalStats.percentage} />
+        <div>
+          Parsed {totalStats.parsed} of {totalStats.total} statements
+        </div>
+      </div>
+
+      <div className="file-stats">
+        {parseResults.map((file) => (
+          <FileParseStats
+            key={file.filename}
+            file={file}
+          />
+        ))}
+      </div>
+
+      <div className="actions">
+        <button
+          onClick={() => {
+            /* navigate to unparsed review */
+          }}
+        >
+          Review Unparsed Statements
+        </button>
+        <button
+          onClick={() => {
+            /* navigate to statement list */
+          }}
+        >
+          Continue to Statements
+        </button>
+      </div>
+    </div>
+  );
+};
+```
+
+### 3. Manual Parsing (`/components/parsing/ManualParsing.tsx`)
+
+![Manual Parsing Screen](https://via.placeholder.com/800x400)
+
+**Description:** Lexical editor interface for highlighting and manually parsing unparsed SQL statements.
+
+**Key Interactive Elements:**
+
+- Lexical editor with SQL highlighting
+- Floating toolbar (appears on selection)
+  - Type dropdown
+  - Name input field
+  - "Parse Selection" button
+  - "Generate Regex" button
+- Navigation buttons (prev/next unparsed section)
+- Progress indicator
+- "Continue to Statements" button
+
+**Sub-components:**
+
+- `SQLEditor.tsx` - Lexical editor setup
+- `FloatingToolbar.tsx` - Context menu for selections
+- `UnparsedNavigation.tsx` - Controls for navigating unparsed sections
+
+**State Management:**
+
+- Current unparsed section
+- Selection state
+- Manual parse history
+
+```tsx
+// Example structure
+const ManualParsing = ({
+  unparsedSections,
+}: {
+  unparsedSections: UnparsedSection[];
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selection, setSelection] = useState(null);
+
+  const handleSelectionChange = (newSelection) => {
+    setSelection(newSelection);
+    // Show floating toolbar near selection
+  };
+
+  const handleParse = (type, name) => {
+    // Parse the selection with provided metadata
+    // Update local state and global parse results
+  };
+
+  const handleGenerateRegex = () => {
+    // Generate regex from current selection
+    // Store in localStorage for future use
+  };
+
+  return (
+    <div className="manual-parsing">
+      <div className="editor-container">
+        <SQLEditor
+          content={unparsedSections[currentIndex].content}
+          onSelectionChange={handleSelectionChange}
+        />
+        {selection && (
+          <FloatingToolbar
+            selection={selection}
+            onParse={handleParse}
+            onGenerateRegex={handleGenerateRegex}
+          />
+        )}
+      </div>
+
+      <UnparsedNavigation
+        current={currentIndex}
+        total={unparsedSections.length}
+        onPrevious={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+        onNext={() =>
+          setCurrentIndex((prev) =>
+            Math.min(unparsedSections.length - 1, prev + 1)
+          )
+        }
+      />
+
+      <button
+        onClick={() => {
+          /* navigate to statement list */
+        }}
+        disabled={unparsedSections.some((section) => !section.parsed)}
+      >
+        Continue to Statements
+      </button>
+    </div>
+  );
+};
+```
+
+### 4. Statement List (`/components/statements/StatementList.tsx`)
+
+![Statement List Screen](https://via.placeholder.com/800x400)
+
+**Description:** Filterable list of all parsed SQL statements.
+
+**Key Interactive Elements:**
+
+- Type filter checkboxes
+- "Latest only" toggle
+- Search box
+- Statement list with metadata
+- "Export SQL" button
+
+**Sub-components:**
+
+- `FilterBar.tsx` - Contains all filtering options
+- `StatementCard.tsx` - Displays individual statement with metadata
+- `SearchInput.tsx` - Search functionality
+
+**State Management:**
+
+- Filter criteria
+- Filtered statements
+- Selected statements (optional)
+
+```tsx
+// Example structure
+const StatementList = ({ statements }: { statements: Statement[] }) => {
+  const [filters, setFilters] = useState({
+    types: [] as string[],
+    latestOnly: true,
+    searchTerm: "",
+  });
+
+  const filteredStatements = useMemo(() => {
+    // Apply filters to statements
+    return statements.filter(/* filtering logic */);
+  }, [statements, filters]);
+
+  return (
+    <div className="statement-list">
+      <FilterBar
+        filters={filters}
+        onFilterChange={setFilters}
+        availableTypes={extractAvailableTypes(statements)}
+      />
+
+      <div className="statements-container">
+        {filteredStatements.map((statement) => (
+          <StatementCard
+            key={statement.id}
+            statement={statement}
+          />
+        ))}
+      </div>
+
+      <button
+        onClick={() => {
+          /* navigate to export */
+        }}
+      >
+        Export SQL
+      </button>
+    </div>
+  );
+};
+```
+
+### 5. Export SQL (`/components/export/ExportSQL.tsx`)
+
+![Export SQL Screen](https://via.placeholder.com/800x400)
+
+**Description:** Final SQL generation with preview and download options.
+
+**Key Interactive Elements:**
+
+- Generated SQL preview
+- Copy button
+- Download button
+- Back to statements button
+
+**Sub-components:**
+
+- `SQLPreview.tsx` - Displays generated SQL with syntax highlighting
+- `DownloadOptions.tsx` - Export format options
+
+**State Management:**
+
+- Generated SQL content
+- Export options
+
+```tsx
+// Example structure
+const ExportSQL = ({ statements }: { statements: Statement[] }) => {
+  const generatedSQL = useMemo(() => {
+    // Generate final SQL with proper ordering and deduplication
+    return generateOrderedSQL(statements);
+  }, [statements]);
+
+  const handleDownload = () => {
+    // Create and trigger download
+    const blob = new Blob([generatedSQL], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "migration.sql";
+    a.click();
+  };
+
+  return (
+    <div className="export-sql">
+      <h1>Generated SQL</h1>
+
+      <SQLPreview sql={generatedSQL} />
+
+      <div className="actions">
+        <button
+          onClick={() => {
+            /* copy to clipboard */
+          }}
+        >
+          Copy to Clipboard
+        </button>
+        <button onClick={handleDownload}>Download SQL</button>
+        <button
+          onClick={() => {
+            /* navigate back to statements */
+          }}
+        >
+          Back to Statements
+        </button>
+      </div>
+    </div>
+  );
+};
+```
+
+## Core Service Components
+
+### SQLParser (`/services/SQLParser.ts`)
+
+Core parsing service responsible for:
+
+- Initial SQL statement parsing
+- Regex pattern management
+- Custom pattern generation
+
+```typescript
+// Example structure
+class SQLParser {
+  private patterns: Record<string, RegExp> = {};
+
+  constructor() {
+    this.loadCustomPatterns();
+    this.initDefaultPatterns();
+  }
+
+  parse(fileContent: string, filename: string): ParsedFile {
+    // Parse logic
+  }
+
+  generateRegexFromSample(sql: string, type: string, name: string): string {
+    // Generate regex pattern
+  }
+
+  // Other methods
+}
+```
+
+### StatementManager (`/services/StatementManager.ts`)
+
+Handles statement processing operations:
+
+- Deduplication
+- Ordering by timestamp
+- Filtering and searching
+
+```typescript
+// Example structure
+class StatementManager {
+  static getLatestVersions(statements: Statement[]): Statement[] {
+    // Get latest version of each statement
+  }
+
+  static orderByEarliestTimestamp(statements: Statement[]): Statement[] {
+    // Order statements
+  }
+
+  static generateSQL(statements: Statement[]): string {
+    // Generate final SQL
+  }
+
+  // Other methods
+}
+```
+
+## UI Component Library (`/components/ui/`)
+
+Reusable UI components:
+
+- `Button.tsx` - Styled buttons with different variants
+- `ProgressBar.tsx` - Visual progress indicator
+- `Card.tsx` - Container for items like statements
+- `Checkbox.tsx` - Filter checkboxes
+- `SearchInput.tsx` - Search functionality
+- `Toggle.tsx` - Toggle switch for binary options
+
+## State Management
+
+### Context Providers (`/contexts/`)
+
+- `ParseContext.tsx` - Manages the parsing process and results
+- `StatementContext.tsx` - Manages the statements collection
+- `UIContext.tsx` - Manages UI state like current view
+
+## Navigation Flow
+
+```
+Home
+ └── File Upload
+     └── Parse Report
+         ├── Manual Parsing (if needed)
+         │    └── Statement List
+         │        └── Export SQL
+         └── Statement List (if all parsed)
+             └── Export SQL
+```
+
+This structure allows for a clean separation of components while maintaining a logical flow through the application. Each major screen is represented by a page component, with smaller functionality-specific components composing each page.
