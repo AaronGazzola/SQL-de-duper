@@ -21,6 +21,8 @@ interface StoreState {
   isProcessing: boolean;
   uploadProgress: Record<string, UploadProgress>;
   unparsedSQL: string;
+  totalLines: number;
+  parsedLines: number;
 
   // SQL Patterns
   sqlPatterns: Record<string, RegExp>;
@@ -99,6 +101,8 @@ export const useStore = create<StoreState>((set, get) => ({
   isProcessing: false,
   uploadProgress: {},
   unparsedSQL: "",
+  totalLines: 0,
+  parsedLines: 0,
 
   // Initial SQL Patterns from the script file
   sqlPatterns: { ...initialPatterns },
@@ -131,12 +135,26 @@ export const useStore = create<StoreState>((set, get) => ({
     set((state) => {
       const updatedResults = state.parseResults.filter((_, i) => i !== index);
 
+      // Recalculate total and parsed lines
+      const totalLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.total,
+        0
+      );
+      const parsedLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.parsed,
+        0
+      );
+
       // Update localStorage
       if (typeof window !== "undefined") {
         localStorage.setItem("parseResults", JSON.stringify(updatedResults));
       }
 
-      return { parseResults: updatedResults };
+      return {
+        parseResults: updatedResults,
+        totalLines,
+        parsedLines,
+      };
     }),
 
   parseFiles: async (files) => {
@@ -193,9 +211,21 @@ export const useStore = create<StoreState>((set, get) => ({
 
       const updatedResults = [...get().parseResults, ...parseResults];
 
+      // Calculate total and parsed lines from all files
+      const totalLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.total,
+        0
+      );
+      const parsedLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.parsed,
+        0
+      );
+
       set({
         parseResults: updatedResults,
         isProcessing: false,
+        totalLines,
+        parsedLines,
       });
 
       // Persist to localStorage
@@ -211,7 +241,18 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   updateParseResults: (results) => {
-    set({ parseResults: results });
+    // Calculate total and parsed lines from all files
+    const totalLines = results.reduce((sum, file) => sum + file.stats.total, 0);
+    const parsedLines = results.reduce(
+      (sum, file) => sum + file.stats.parsed,
+      0
+    );
+
+    set({
+      parseResults: results,
+      totalLines,
+      parsedLines,
+    });
 
     // Update localStorage
     if (typeof window !== "undefined") {
@@ -227,14 +268,20 @@ export const useStore = create<StoreState>((set, get) => ({
       const updatedResults = state.parseResults.map((file) => {
         if (file.filename === statement.fileName) {
           const statements = [...file.statements, statement];
+
+          // Count lines in the statement content
+          const statementLines = statement.content
+            .split("\n")
+            .filter((line) => line.trim()).length;
+
           return {
             ...file,
             statements,
             stats: {
               ...file.stats,
-              parsed: statements.length,
+              parsed: file.stats.parsed + statementLines,
               percentage: Math.round(
-                (statements.length / file.stats.total) * 100
+                ((file.stats.parsed + statementLines) / file.stats.total) * 100
               ),
             },
           };
@@ -242,68 +289,149 @@ export const useStore = create<StoreState>((set, get) => ({
         return file;
       });
 
+      // Recalculate total and parsed lines
+      const totalLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.total,
+        0
+      );
+      const parsedLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.parsed,
+        0
+      );
+
       // Update localStorage
       if (typeof window !== "undefined") {
         localStorage.setItem("parseResults", JSON.stringify(updatedResults));
       }
 
-      return { parseResults: updatedResults };
+      return {
+        parseResults: updatedResults,
+        totalLines,
+        parsedLines,
+      };
     }),
 
   updateStatement: (id, updatedStatement) =>
     set((state) => {
-      const updatedResults = state.parseResults.map((file) => {
-        const statements = file.statements.map((statement) =>
-          statement.id === id
-            ? { ...statement, ...updatedStatement }
-            : statement
-        );
+      // Keep track of line count changes
+      let lineCountDelta = 0;
 
-        return {
-          ...file,
-          statements,
-          stats: {
-            ...file.stats,
-            parsed: statements.length,
-            percentage: Math.round(
-              (statements.length / file.stats.total) * 100
-            ),
-          },
-        };
+      const updatedResults = state.parseResults.map((file) => {
+        const statements = file.statements.map((statement) => {
+          if (statement.id === id) {
+            // If the content has changed, calculate the line count difference
+            if (
+              updatedStatement.content &&
+              updatedStatement.content !== statement.content
+            ) {
+              const oldLines = statement.content
+                .split("\n")
+                .filter((line) => line.trim()).length;
+              const newLines = updatedStatement.content
+                .split("\n")
+                .filter((line) => line.trim()).length;
+              lineCountDelta = newLines - oldLines;
+            }
+
+            return { ...statement, ...updatedStatement };
+          }
+          return statement;
+        });
+
+        // Only update the stats if this file contains the statement that was updated
+        if (statements.some((s) => s.id === id)) {
+          return {
+            ...file,
+            statements,
+            stats: {
+              ...file.stats,
+              parsed: file.stats.parsed + lineCountDelta,
+              percentage: Math.round(
+                ((file.stats.parsed + lineCountDelta) / file.stats.total) * 100
+              ),
+            },
+          };
+        }
+        return file;
       });
+
+      // Recalculate total and parsed lines
+      const totalLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.total,
+        0
+      );
+      const parsedLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.parsed,
+        0
+      );
 
       // Update localStorage
       if (typeof window !== "undefined") {
         localStorage.setItem("parseResults", JSON.stringify(updatedResults));
       }
 
-      return { parseResults: updatedResults };
+      return {
+        parseResults: updatedResults,
+        totalLines,
+        parsedLines,
+      };
     }),
 
   removeStatement: (id) =>
     set((state) => {
+      let removedLineCount = 0;
+
       const updatedResults = state.parseResults.map((file) => {
+        // Find the statement to be removed
+        const statementToRemove = file.statements.find((s) => s.id === id);
+
+        // Calculate lines to be removed if the statement exists in this file
+        if (statementToRemove) {
+          removedLineCount = statementToRemove.content
+            .split("\n")
+            .filter((line) => line.trim()).length;
+        }
+
         const statements = file.statements.filter((s) => s.id !== id);
 
-        return {
-          ...file,
-          statements,
-          stats: {
-            ...file.stats,
-            parsed: statements.length,
-            percentage: Math.round(
-              (statements.length / file.stats.total) * 100
-            ),
-          },
-        };
+        // Only update stats if this file contained the removed statement
+        if (file.statements.length !== statements.length) {
+          return {
+            ...file,
+            statements,
+            stats: {
+              ...file.stats,
+              parsed: file.stats.parsed - removedLineCount,
+              percentage: Math.round(
+                ((file.stats.parsed - removedLineCount) / file.stats.total) *
+                  100
+              ),
+            },
+          };
+        }
+        return file;
       });
+
+      // Recalculate total and parsed lines
+      const totalLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.total,
+        0
+      );
+      const parsedLines = updatedResults.reduce(
+        (sum, file) => sum + file.stats.parsed,
+        0
+      );
 
       // Update localStorage
       if (typeof window !== "undefined") {
         localStorage.setItem("parseResults", JSON.stringify(updatedResults));
       }
 
-      return { parseResults: updatedResults };
+      return {
+        parseResults: updatedResults,
+        totalLines,
+        parsedLines,
+      };
     }),
 
   generateSQL: () => {
@@ -354,6 +482,8 @@ export const useStore = create<StoreState>((set, get) => ({
       isProcessing: false,
       uploadProgress: {},
       unparsedSQL: "",
+      totalLines: 0,
+      parsedLines: 0,
       filters: {
         types: [],
         latestOnly: true,

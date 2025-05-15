@@ -5,54 +5,35 @@ import { StatementItem } from "@/components/StatementItem";
 import { Accordion } from "@/components/ui/accordion";
 import { useStatements } from "@/hooks/useStatements";
 import { useStore } from "@/Providers/store";
+import { Statement } from "@/types/app.types";
 import { useMemo } from "react";
 
 export function StatementAccordion() {
   const { filters } = useStore();
-  const { statementGroups, filteredStatements } = useStatements();
+  const { filteredStatements, findStatementVersions } = useStatements();
 
-  // Create a grouped view of statements
+  // Create a grouped view of statements based on the filter settings
   const groupedItems = useMemo(() => {
     if (filters.showUnparsed) {
       return []; // We don't show unparsed content in the accordion anymore
     }
 
-    // If we're not showing latest only, use filtered statements directly
-    if (!filters.latestOnly) {
-      return filteredStatements.map((statement) => ({
+    let displayStatements: Statement[] = [];
+
+    displayStatements = filteredStatements;
+
+    // Map each statement to an object with all versions
+    return displayStatements.map((statement) => {
+      // Find all versions of this statement
+      const versions = findStatementVersions(statement);
+
+      return {
         id: statement.id,
-        statement,
-        versions: [statement],
-      }));
-    }
-
-    // Otherwise, get statement groups that match the filter criteria
-    return statementGroups
-      .filter((group) => {
-        // Filter by type if types filter is active
-        if (filters.types.length > 0 && !filters.types.includes(group.type)) {
-          return false;
-        }
-
-        // Filter by search term
-        if (filters.searchTerm) {
-          const searchLower = filters.searchTerm.toLowerCase();
-          // Check if any statement in the group matches the search term
-          return group.statements.some(
-            (stmt) =>
-              stmt.name.toLowerCase().includes(searchLower) ||
-              stmt.content.toLowerCase().includes(searchLower)
-          );
-        }
-
-        return true;
-      })
-      .map((group) => ({
-        id: group.statements[0].id,
-        statement: group.statements[0], // Use the latest statement as the primary
-        versions: group.statements, // All versions for pagination
-      }));
-  }, [statementGroups, filteredStatements, filters]);
+        statement: statement,
+        versions: versions,
+      };
+    });
+  }, [filteredStatements, filters, findStatementVersions]);
 
   return (
     <div className="w-full max-w-2xl mx-auto relative">

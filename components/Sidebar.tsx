@@ -23,9 +23,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
-import { ParsedFile } from "@/types/app.types";
 import { Code, Download, Menu, RefreshCw, RotateCcw } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 export default function AppSidebar() {
   const { open, setOpen } = useSidebar();
@@ -38,6 +37,8 @@ export default function AppSidebar() {
     resetSqlPatterns,
     setUploadDialogOpen,
     setEditorDialogOpen,
+    totalLines,
+    parsedLines,
   } = useStore();
 
   // Sync the sidebar state with the store
@@ -47,24 +48,9 @@ export default function AppSidebar() {
     }
   }, [open, isSidebarOpen, toggleSidebar]);
 
-  // Calculate total progress
-  const progress = useMemo(() => {
-    if (parseResults.length > 0) {
-      const totalStats = parseResults.reduce(
-        (acc: { total: number; parsed: number }, file: ParsedFile) => {
-          acc.total += file.stats.total;
-          acc.parsed += file.stats.parsed;
-          return acc;
-        },
-        { total: 0, parsed: 0 }
-      );
-
-      return totalStats.total > 0
-        ? Math.round((totalStats.parsed / totalStats.total) * 100)
-        : 0;
-    }
-    return 0;
-  }, [parseResults]);
+  // Calculate progress percentage
+  const progress =
+    totalLines > 0 ? Math.round((parsedLines / totalLines) * 100) : 0;
 
   const handleDownload = () => {
     // Generate SQL using the store method
@@ -175,7 +161,7 @@ export default function AppSidebar() {
               />
               {open && (
                 <p className="text-xs text-gray-500 mt-1">
-                  {progress}% Complete
+                  {progress}% Complete ({parsedLines}/{totalLines} lines)
                 </p>
               )}
             </div>
@@ -203,11 +189,15 @@ export default function AppSidebar() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="text-sm truncate p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded">
-                          {file.filename}
+                          {file.filename} ({file.stats.parsed}/
+                          {file.stats.total} lines)
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>{file.filename}</p>
+                        <p>
+                          {file.filename} - {file.stats.parsed} of{" "}
+                          {file.stats.total} lines parsed
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

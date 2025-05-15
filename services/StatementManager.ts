@@ -52,7 +52,7 @@ export class StatementManager {
       );
     }
 
-    // Filter to only latest version of each object
+    // Filter to only latest version of each object if latestOnly is enabled
     if (filters.latestOnly) {
       const groups = this.groupByNameAndType(filteredStatements);
       filteredStatements = groups.map((group) => group.statements[0]);
@@ -161,6 +161,16 @@ export class StatementManager {
     return statements.filter((statement) =>
       statement.content.toLowerCase().includes(objectName.toLowerCase())
     );
+  }
+
+  // Find all versions of a statement with the same name and type
+  static findVersionsOfStatement(
+    statements: Statement[],
+    statement: Statement
+  ): Statement[] {
+    return statements
+      .filter((s) => s.name === statement.name && s.type === statement.type)
+      .sort((a, b) => b.timestamp - a.timestamp); // Sort by timestamp, newest first
   }
 }
 

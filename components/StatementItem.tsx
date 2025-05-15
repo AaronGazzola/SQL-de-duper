@@ -33,8 +33,10 @@ export function StatementItem({
   versions: Statement[];
 }) {
   const [currentVersionIndex, setCurrentVersionIndex] = useState(0);
-  const currentStatement = versions[currentVersionIndex] || statement;
-  const totalVersions = versions.length;
+  // We use the versions array passed as a prop instead of recalculating
+  const sortedVersions = versions.sort((a, b) => b.timestamp - a.timestamp); // Ensure newest first
+  const currentStatement = sortedVersions[currentVersionIndex] || statement;
+  const totalVersions = sortedVersions.length;
 
   // Handle pagination
   const handlePreviousVersion = () => {
@@ -51,6 +53,73 @@ export function StatementItem({
     if (index >= 0 && index < totalVersions) {
       setCurrentVersionIndex(index);
     }
+  };
+
+  // Determine which pagination links to show
+  const getPaginationItems = () => {
+    const items = [];
+
+    // Always show first page
+    items.push(
+      <PaginationItem key="first">
+        <PaginationLink
+          isActive={currentVersionIndex === 0}
+          onClick={() => handleVersionSelect(0)}
+        >
+          1
+        </PaginationLink>
+      </PaginationItem>
+    );
+
+    // If there are more than 3 pages and we're not at the beginning,
+    // add ellipsis after first page
+    if (totalVersions > 3 && currentVersionIndex > 1) {
+      items.push(
+        <PaginationItem key="ellipsis-start">
+          <PaginationEllipsis />
+        </PaginationItem>
+      );
+    }
+
+    // Current page (if not first or last)
+    if (currentVersionIndex > 0 && currentVersionIndex < totalVersions - 1) {
+      items.push(
+        <PaginationItem key={`current-${currentVersionIndex}`}>
+          <PaginationLink
+            isActive={true}
+            onClick={() => {}}
+          >
+            {currentVersionIndex + 1}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+
+    // If there are more than 3 pages and we're not at the end,
+    // add ellipsis before last page
+    if (totalVersions > 3 && currentVersionIndex < totalVersions - 2) {
+      items.push(
+        <PaginationItem key="ellipsis-end">
+          <PaginationEllipsis />
+        </PaginationItem>
+      );
+    }
+
+    // Always show last page if there's more than one page
+    if (totalVersions > 1) {
+      items.push(
+        <PaginationItem key="last">
+          <PaginationLink
+            isActive={currentVersionIndex === totalVersions - 1}
+            onClick={() => handleVersionSelect(totalVersions - 1)}
+          >
+            {totalVersions}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+
+    return items;
   };
 
   return (
@@ -109,39 +178,7 @@ export function StatementItem({
                   />
                 </PaginationItem>
 
-                {versions.map((_, index) => {
-                  // Show first, last, and current page, plus ones adjacent to current
-                  const shouldShow =
-                    index === 0 ||
-                    index === totalVersions - 1 ||
-                    Math.abs(index - currentVersionIndex) <= 1;
-
-                  // Show ellipsis between non-consecutive shown pages
-                  const showEllipsisBefore =
-                    index > 0 &&
-                    shouldShow &&
-                    !shouldShow &&
-                    Math.abs(index - currentVersionIndex) > 1;
-
-                  if (!shouldShow && !showEllipsisBefore) {
-                    return null;
-                  }
-
-                  return showEllipsisBefore ? (
-                    <PaginationItem key={`ellipsis-${index}`}>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  ) : (
-                    <PaginationItem key={index}>
-                      <PaginationLink
-                        isActive={index === currentVersionIndex}
-                        onClick={() => handleVersionSelect(index)}
-                      >
-                        {index + 1}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
+                {getPaginationItems()}
 
                 <PaginationItem>
                   <PaginationNext
@@ -181,6 +218,12 @@ export function StatementItem({
                 <span className="font-semibold">Hash:</span>{" "}
                 {currentStatement.hash}
               </div>
+              {totalVersions > 1 && (
+                <div>
+                  <span className="font-semibold">Version:</span>{" "}
+                  {currentVersionIndex + 1} of {totalVersions}
+                </div>
+              )}
             </div>
           </div>
 

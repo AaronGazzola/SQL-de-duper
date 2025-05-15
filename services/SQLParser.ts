@@ -17,17 +17,27 @@ export class SQLParser {
     // Use patterns from store
     this.patterns = customPatterns;
 
+    // Split the content into lines to count total lines
+    const allLines = fileContent.split("\n").filter((line) => line.trim());
+    const totalLines = allLines.length;
+
     // Initialize result structure
     const parsedFile: ParsedFile = {
       filename,
       originalContent: fileContent,
       statements: [],
       stats: {
-        total: 0,
+        total: totalLines,
         parsed: 0,
         percentage: 0,
       },
     };
+
+    // Extract timestamp from filename if present (format: migration_YYYYMMDDHHMMSS_name.sql)
+    const timestampMatch = filename.match(/_(\d{14})_/);
+    const fileTimestamp = timestampMatch
+      ? this.parseTimestamp(timestampMatch[1])
+      : Date.now();
 
     // Split the content into SQL statements
     const statements = this.splitIntoStatements(fileContent);
@@ -37,29 +47,39 @@ export class SQLParser {
       // If no statements, all content is unparsed
       unparsedSQL = fileContent;
       parsedFile.stats = {
-        total: 1,
+        total: totalLines,
         parsed: 0,
         percentage: 0,
       };
       return { parsedFile, unparsedSQL };
     }
 
+    // Count lines in parsed statements to calculate parsed lines
+    let parsedLines = 0;
+
     // Process each statement
     statements.forEach((stmt, stmtIndex) => {
-      const parsed = this.parseStatement(stmt, stmtIndex, filename);
+      const parsed = this.parseStatement(
+        stmt,
+        stmtIndex,
+        filename,
+        fileTimestamp
+      );
 
       if (parsed) {
         // Add to result statements
         parsedFile.statements.push(parsed);
+        // Count lines in this parsed statement
+        parsedLines += stmt.split("\n").filter((line) => line.trim()).length;
       } else {
         // Add to unparsed SQL string
         unparsedSQL += stmt + "\n\n";
       }
     });
 
-    // Calculate stats
-    const total = parsedFile.statements.length + (unparsedSQL ? 1 : 0);
-    const parsed = parsedFile.statements.length;
+    // Calculate stats based on the number of lines
+    const parsed = parsedLines;
+    const total = totalLines;
     const percentage = total > 0 ? Math.round((parsed / total) * 100) : 0;
 
     // Update result stats
@@ -72,10 +92,29 @@ export class SQLParser {
     return { parsedFile, unparsedSQL };
   }
 
+  private parseTimestamp(timestamp: string): number {
+    // Parse timestamp from migration filename (YYYYMMDDHHMMSS format)
+    try {
+      const year = parseInt(timestamp.substring(0, 4));
+      const month = parseInt(timestamp.substring(4, 6)) - 1; // Months are 0-indexed in JS
+      const day = parseInt(timestamp.substring(6, 8));
+      const hour = parseInt(timestamp.substring(8, 10));
+      const minute = parseInt(timestamp.substring(10, 12));
+      const second = parseInt(timestamp.substring(12, 14));
+
+      return new Date(year, month, day, hour, minute, second).getTime();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      return Date.now();
+    }
+  }
+
   private parseStatement(
     statement: string,
     index: number,
-    filename: string
+    filename: string,
+    timestamp: number
   ): Statement | null {
     // Skip statements that are purely comments
     if (
@@ -96,7 +135,7 @@ export class SQLParser {
         type: "trigger",
         name: "trigger_update_test_labels_timestamp",
         content: statement,
-        timestamp: Date.now(),
+        timestamp: timestamp,
         hash: this.generateHash(statement),
       };
     }
@@ -131,7 +170,7 @@ export class SQLParser {
           type,
           name,
           content: statement,
-          timestamp: Date.now(),
+          timestamp: timestamp,
           hash: this.generateHash(statement),
         };
       }
@@ -149,7 +188,7 @@ export class SQLParser {
         type: "alter",
         name: dropMatch[2],
         content: statement,
-        timestamp: Date.now(),
+        timestamp: timestamp,
         hash: this.generateHash(statement),
       };
     }
