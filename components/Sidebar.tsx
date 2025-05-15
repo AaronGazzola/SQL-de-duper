@@ -1,10 +1,10 @@
-// components/AppSidebar.tsx
+// components/Sidebar.tsx
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
-  Sidebar,
+  Sidebar as ShadcnSidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
@@ -23,10 +23,18 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
-import { Code, Download, Menu, RefreshCw, RotateCcw } from "lucide-react";
+import {
+  ClipboardCopy,
+  Code,
+  Copy,
+  Download,
+  Menu,
+  RefreshCw,
+  RotateCcw,
+} from "lucide-react";
 import { useEffect } from "react";
 
-export default function AppSidebar() {
+export default function Sidebar() {
   const { open, setOpen } = useSidebar();
   const {
     isSidebarOpen,
@@ -39,6 +47,7 @@ export default function AppSidebar() {
     setEditorDialogOpen,
     totalLines,
     parsedLines,
+    unparsedSQL,
   } = useStore();
 
   // Sync the sidebar state with the store
@@ -52,7 +61,7 @@ export default function AppSidebar() {
   const progress =
     totalLines > 0 ? Math.round((parsedLines / totalLines) * 100) : 0;
 
-  const handleDownload = () => {
+  const handleDownloadParsedSQL = () => {
     // Generate SQL using the store method
     const generatedSQL = generateSQL();
 
@@ -64,6 +73,30 @@ export default function AppSidebar() {
     a.download = "migration.sql";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleCopyParsedSQL = () => {
+    const generatedSQL = generateSQL();
+    navigator.clipboard
+      .writeText(generatedSQL)
+      .catch((err) => console.error("Failed to copy parsed SQL:", err));
+  };
+
+  const handleDownloadUnparsedSQL = () => {
+    // Create a download for unparsed SQL
+    const blob = new Blob([unparsedSQL], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "unparsed.sql";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyUnparsedSQL = () => {
+    navigator.clipboard
+      .writeText(unparsedSQL)
+      .catch((err) => console.error("Failed to copy unparsed SQL:", err));
   };
 
   const handleReset = () => {
@@ -85,7 +118,7 @@ export default function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon">
+    <ShadcnSidebar collapsible="icon">
       <SidebarContent className="h-full bg-gray-100 dark:bg-gray-900 border-r dark:border-gray-800 overflow-x-hidden gap-0 ">
         <SidebarHeader className="p-4">
           <div
@@ -169,14 +202,50 @@ export default function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup className={cn(isSidebarOpen ? "p-4" : "p-1.5")}>
-          <Button
-            disabled={progress < 100}
-            onClick={handleDownload}
-            className="flex items-center gap-2 w-full"
-          >
-            <Download className="h-5 w-5" />
-            {open && <span>Download SQL</span>}
-          </Button>
+          <SidebarGroupLabel>SQL Downloads</SidebarGroupLabel>
+
+          <div className="flex flex-row gap-2 mb-2">
+            <Button
+              disabled={progress < 100}
+              onClick={handleDownloadParsedSQL}
+              className="flex items-center gap-2 flex-grow cursor-pointer"
+            >
+              <Download className="h-5 w-5" />
+              {open && <span>Parsed SQL</span>}
+            </Button>
+            <Button
+              disabled={progress < 100}
+              onClick={handleCopyParsedSQL}
+              variant="outline"
+              size="icon"
+              className="flex-shrink-0 cursor-pointer"
+            >
+              <ClipboardCopy className="h-5 w-5" />
+              <span className="sr-only">Copy to clipboard</span>
+            </Button>
+          </div>
+
+          <div className="flex flex-row gap-2">
+            <Button
+              disabled={!unparsedSQL}
+              onClick={handleDownloadUnparsedSQL}
+              className="flex items-center gap-2 flex-grow cursor-pointer hover:bg-gray-200"
+              variant="secondary"
+            >
+              <Download className="h-5 w-5" />
+              {open && <span>Unparsed SQL</span>}
+            </Button>
+            <Button
+              disabled={!unparsedSQL}
+              onClick={handleCopyUnparsedSQL}
+              variant="outline"
+              size="icon"
+              className="flex-shrink-0 cursor-pointer hover:bg-gray-200"
+            >
+              <Copy className="h-5 w-5" />
+              <span className="sr-only">Copy to clipboard</span>
+            </Button>
+          </div>
         </SidebarGroup>
 
         {open && (
@@ -212,6 +281,6 @@ export default function AppSidebar() {
           </SidebarGroup>
         )}
       </SidebarContent>
-    </Sidebar>
+    </ShadcnSidebar>
   );
 }
