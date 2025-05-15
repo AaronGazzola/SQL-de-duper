@@ -22,6 +22,9 @@ interface StoreState {
   isProcessing: boolean;
   uploadProgress: Record<string, UploadProgress>;
 
+  // SQL Patterns
+  sqlPatterns: Record<string, RegExp>;
+
   // Statement State
   filters: Filter;
 
@@ -43,7 +46,21 @@ interface StoreState {
     updatedSection: Partial<UnparsedSection>
   ) => void;
   resetStore: () => void;
+  setSqlPattern: (key: string, pattern: RegExp) => void;
 }
+
+// Initialize store with saved data if available
+const loadStoredData = (): ParsedFile[] => {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const storedData = localStorage.getItem("parseResults");
+    return storedData ? JSON.parse(storedData) : [];
+  } catch (error) {
+    console.error("Error loading stored data:", error);
+    return [];
+  }
+};
 
 export const useStore = create<StoreState>((set, get) => ({
   // Initial UI State
@@ -54,9 +71,35 @@ export const useStore = create<StoreState>((set, get) => ({
   rawEditorSQL: "",
 
   // Initial Parse State
-  parseResults: [],
+  parseResults: loadStoredData(),
   isProcessing: false,
   uploadProgress: {},
+
+  // Initial SQL Patterns from the script file
+  sqlPatterns: {
+    function:
+      /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?([a-zA-Z0-9_]+)\s*\(/i,
+    trigger: /CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+([a-zA-Z0-9_]+)\s/i,
+    policy: /CREATE\s+POLICY\s+(?:")?([a-zA-Z0-9_\s]+)(?:")?\s+ON\s+/i,
+    index: /CREATE\s+(?:UNIQUE\s+)?INDEX\s+([a-zA-Z0-9_]+)\s+ON\s+/i,
+    type: /CREATE\s+TYPE\s+(?:public\.)?([a-zA-Z0-9_]+)\s+AS\s+/i,
+    table:
+      /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?([a-zA-Z0-9_]+)\s*\(/i,
+    view: /CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(?:public\.)?([a-zA-Z0-9_]+)\s+AS\s+/i,
+    constraint: /ADD\s+CONSTRAINT\s+([a-zA-Z0-9_]+)\s+/i,
+    grant:
+      /GRANT\s+(\w+(?:\s*,\s*\w+)*)\s+ON\s+(?:TABLE\s+)?(?:FUNCTION\s+)?(?:public\.)?([a-zA-Z0-9_]+)/i,
+    revoke:
+      /REVOKE\s+(\w+(?:\s*,\s*\w+)*)\s+ON\s+(?:TABLE\s+)?(?:FUNCTION\s+)?(?:public\.)?([a-zA-Z0-9_]+)/i,
+    comment:
+      /COMMENT\s+ON\s+(?:TABLE|COLUMN|FUNCTION|TYPE|POLICY)\s+(?:public\.)?([a-zA-Z0-9_]+)/i,
+    alter: /ALTER\s+(?:TABLE|COLUMN|TYPE)\s+(?:public\.)?([a-zA-Z0-9_]+)/i,
+    extension: /CREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i,
+    plpgsql: /DO\s+\$\$/i,
+    dropPolicy:
+      /DROP\s+POLICY\s+(?:IF\s+EXISTS\s+)?(?:")?([a-zA-Z0-9_\s]+)(?:")?/i,
+    dropTrigger: /DROP\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i,
+  },
 
   // Initial Statement State
   filters: {
@@ -81,9 +124,16 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   removeFile: (index) =>
-    set((state) => ({
-      parseResults: state.parseResults.filter((_, i) => i !== index),
-    })),
+    set((state) => {
+      const updatedResults = state.parseResults.filter((_, i) => i !== index);
+
+      // Update localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("parseResults", JSON.stringify(updatedResults));
+      }
+
+      return { parseResults: updatedResults };
+    }),
 
   parseFiles: async (files) => {
     set({ isProcessing: true });
@@ -106,8 +156,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
           const fileContent = await file.text();
 
+          // Get current patterns from store and pass to parser
+          const patterns = get().sqlPatterns;
+
           // Use SQLParser to parse the file
-          const parsedFile = sqlParser.parse(fileContent, file.name);
+          const parsedFile = sqlParser.parse(fileContent, file.name, patterns);
 
           // Update to 100% when done
           set((state) => ({
@@ -125,13 +178,17 @@ export const useStore = create<StoreState>((set, get) => ({
         })
       );
 
-      set((state) => ({
-        parseResults: [...state.parseResults, ...parseResults],
-        isProcessing: false,
-      }));
+      const updatedResults = [...get().parseResults, ...parseResults];
 
-      // Persist to localStorage if needed
-      localStorage.setItem("parseResults", JSON.stringify(get().parseResults));
+      set({
+        parseResults: updatedResults,
+        isProcessing: false,
+      });
+
+      // Persist to localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("parseResults", JSON.stringify(updatedResults));
+      }
 
       return Promise.resolve();
     } catch (error) {
@@ -140,7 +197,14 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  updateParseResults: (results) => set({ parseResults: results }),
+  updateParseResults: (results) => {
+    set({ parseResults: results });
+
+    // Update localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("parseResults", JSON.stringify(results));
+    }
+  },
 
   setFilters: (filters) => set({ filters }),
 
@@ -164,6 +228,11 @@ export const useStore = create<StoreState>((set, get) => ({
         return file;
       });
 
+      // Update localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("parseResults", JSON.stringify(updatedResults));
+      }
+
       return { parseResults: updatedResults };
     }),
 
@@ -179,6 +248,11 @@ export const useStore = create<StoreState>((set, get) => ({
           ),
         };
       });
+
+      // Update localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("parseResults", JSON.stringify(updatedResults));
+      }
 
       return { parseResults: updatedResults };
     }),
@@ -205,6 +279,11 @@ export const useStore = create<StoreState>((set, get) => ({
         return file;
       });
 
+      // Update localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("parseResults", JSON.stringify(updatedResults));
+      }
+
       return { parseResults: updatedResults };
     }),
 
@@ -218,6 +297,11 @@ export const useStore = create<StoreState>((set, get) => ({
           ),
         };
       });
+
+      // Update localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("parseResults", JSON.stringify(updatedResults));
+      }
 
       return { parseResults: updatedResults };
     }),
@@ -250,7 +334,16 @@ export const useStore = create<StoreState>((set, get) => ({
     return generatedSQL;
   },
 
+  setSqlPattern: (key, pattern) =>
+    set((state) => ({
+      sqlPatterns: {
+        ...state.sqlPatterns,
+        [key]: pattern,
+      },
+    })),
+
   resetStore: () => {
+    // Clear in-memory state
     set({
       parseResults: [],
       isProcessing: false,
@@ -263,5 +356,10 @@ export const useStore = create<StoreState>((set, get) => ({
       rawEditorSQL: "",
       isEditorDialogOpen: false,
     });
+
+    // Clear localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("parseResults");
+    }
   },
 }));

@@ -3,7 +3,7 @@
 import FileDropZone from "@/components/FileDropZone";
 import FileList from "@/components/FileList";
 import { Button } from "@/components/ui/button";
-import { useStore } from "@/store/store";
+import { useSQLParser } from "@/hooks/useSQLParser";
 import { File as AppFile } from "@/types/app.types";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -17,7 +17,7 @@ interface FileUploadProps {
 export function FileUpload({ onComplete }: FileUploadProps) {
   const router = useRouter();
   const [files, setFiles] = useState<AppFile[]>([]);
-  const { isProcessing, parseFiles } = useStore();
+  const { isProcessing, parseFiles } = useSQLParser();
 
   const handleFilesDrop = useCallback((newFiles: AppFile[]) => {
     setFiles((prev) => {
@@ -45,14 +45,19 @@ export function FileUpload({ onComplete }: FileUploadProps) {
     if (files.length === 0) return;
     try {
       await parseFiles(files);
+
       // Call the onComplete callback if provided
       if (onComplete) {
         onComplete();
       }
+
       // Force a refresh
       router.refresh();
+
       // Clear the file list
       setFiles([]);
+
+      toast.success(`Successfully parsed ${files.length} file(s)`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Could not parse files";
