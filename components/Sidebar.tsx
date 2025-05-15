@@ -3,32 +3,53 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/store/store";
-import { Download, Home, MenuIcon, RefreshCw } from "lucide-react";
-import Link from "next/link";
-import { useMemo } from "react";
+import { useStore } from "@/Providers/store";
+import { ParsedFile } from "@/types/app.types";
+import { Download, Menu, RefreshCw, RotateCcw } from "lucide-react";
+import { useEffect, useMemo } from "react";
 
-export default function Sidebar() {
+export default function AppSidebar() {
+  const { open, setOpen } = useSidebar();
   const {
-    parseResults,
     isSidebarOpen,
+    parseResults,
     toggleSidebar,
     generateSQL,
     resetStore,
+    resetSqlPatterns,
     setUploadDialogOpen,
   } = useStore();
+
+  // Sync the sidebar state with the store
+  useEffect(() => {
+    if (isSidebarOpen !== open) {
+      toggleSidebar();
+    }
+  }, [open, isSidebarOpen, toggleSidebar]);
 
   // Calculate total progress
   const progress = useMemo(() => {
     if (parseResults.length > 0) {
       const totalStats = parseResults.reduce(
-        (acc, file) => {
+        (acc: { total: number; parsed: number }, file: ParsedFile) => {
           acc.total += file.stats.total;
           acc.parsed += file.stats.parsed;
           return acc;
@@ -62,91 +83,122 @@ export default function Sidebar() {
     setUploadDialogOpen(true);
   };
 
+  const handleResetPatterns = () => {
+    resetSqlPatterns();
+  };
+
+  const handleToggleSidebar = () => {
+    setOpen(!open);
+    toggleSidebar();
+  };
+
   return (
-    <div
-      className={`h-full bg-gray-100 border-r transition-all duration-300 ${
-        isSidebarOpen ? "w-64" : "w-16"
-      }`}
-    >
-      <div className="p-4 flex flex-col h-full">
-        <div className="flex items-center justify-between mb-6">
-          {isSidebarOpen && <h2 className="font-bold text-lg">SQL Parser</h2>}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
+    <Sidebar collapsible="icon">
+      <SidebarContent className="h-full bg-gray-100 dark:bg-gray-900 border-r dark:border-gray-800 overflow-x-hidden gap-0 ">
+        <SidebarHeader className="p-4">
+          <div
+            className={cn(
+              "flex items-center",
+              isSidebarOpen ? "justify-between" : "justify-center"
+            )}
           >
-            <MenuIcon className="h-5 w-5" />
-          </Button>
-        </div>
-
-        <div
-          className={cn(!isSidebarOpen ? "flex-col" : "flex-row", "mb-6 flex")}
-        >
-          <Link href="/">
-            <Button variant="ghost">
-              <Home className="h-5 w-5" />
-              {isSidebarOpen && <span>Home</span>}
+            {open && <h2 className="font-bold text-lg">SQL Squasher</h2>}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleToggleSidebar}
+            >
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle Sidebar</span>
             </Button>
-          </Link>
+          </div>
+        </SidebarHeader>
 
-          <Button
-            variant="ghost"
-            onClick={handleReset}
-          >
-            <RefreshCw className="h-5 w-5 ml-2" />
-            {isSidebarOpen && <span>Reset</span>}
-          </Button>
-        </div>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleReset}
+                  tooltip="Reset Data"
+                  className="cursor-pointer"
+                >
+                  <RefreshCw className="h-5 w-5" />
+                  <span>Reset Data</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
-        <div className="mb-6">
-          {isSidebarOpen && (
-            <p className="text-sm text-gray-500 mb-2">Parsing Progress</p>
-          )}
-          <Progress
-            value={progress}
-            className="h-2"
-          />
-          {isSidebarOpen && (
-            <p className="text-xs text-gray-500 mt-1">{progress}% Complete</p>
-          )}
-        </div>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleResetPatterns}
+                  tooltip="Reset Patterns"
+                  className="cursor-pointer"
+                >
+                  <RotateCcw className="h-5 w-5" />
+                  <span>Reset Patterns</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-        <Button
-          disabled={progress < 100}
-          onClick={handleDownload}
-        >
-          <Download className="h-5 w-5" />
-          {isSidebarOpen && <span className="ml-2">Download SQL</span>}
-        </Button>
-
-        {isSidebarOpen && (
-          <div className="mt-4">
-            <p className="text-sm text-gray-500 mb-2">Uploaded Files</p>
-            <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-240px)]">
-              {parseResults.map((file, index) => (
-                <TooltipProvider key={index}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="text-sm truncate p-2 hover:bg-gray-200 rounded">
-                        {file.filename}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{file.filename}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
-              {parseResults.length === 0 && (
-                <p className="text-xs text-gray-400 italic">
-                  No files uploaded
+        <SidebarGroup className="p-4">
+          <SidebarGroupLabel>Parsing Progress</SidebarGroupLabel>
+          <SidebarGroupContent className={cn(!isSidebarOpen && "h-32")}>
+            <div className={cn(isSidebarOpen ? "" : " rotate-90")}>
+              <Progress
+                value={progress}
+                className={cn("h-2", isSidebarOpen ? "w-full" : "w-32")}
+              />
+              {open && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {progress}% Complete
                 </p>
               )}
             </div>
-          </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className={cn(isSidebarOpen ? "p-4" : "p-1.5")}>
+          <Button
+            disabled={progress < 100}
+            onClick={handleDownload}
+            className="flex items-center gap-2 w-full"
+          >
+            <Download className="h-5 w-5" />
+            {open && <span>Download SQL</span>}
+          </Button>
+        </SidebarGroup>
+
+        {open && (
+          <SidebarGroup className="p-4 flex-grow relative">
+            <SidebarGroupLabel>Uploaded Files</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <div className="space-y-1 overflow-y-auto absolute inset-3 top-12">
+                {parseResults.map((file, index) => (
+                  <TooltipProvider key={index}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="text-sm truncate p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded">
+                          {file.filename}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{file.filename}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
+                {parseResults.length === 0 && (
+                  <p className="text-xs text-gray-400 italic">
+                    No files uploaded
+                  </p>
+                )}
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
-      </div>
-    </div>
+      </SidebarContent>
+    </Sidebar>
   );
 }

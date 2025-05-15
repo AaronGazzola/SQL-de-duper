@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getDisplayName } from "@/lib/utils";
-import { useStore } from "@/store/store";
+import { useStore } from "@/Providers/store";
 import { Statement, UnparsedSection } from "@/types/app.types";
 import { Edit } from "lucide-react";
 

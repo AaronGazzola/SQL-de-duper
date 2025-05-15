@@ -24,6 +24,7 @@ interface StoreState {
 
   // SQL Patterns
   sqlPatterns: Record<string, RegExp>;
+  initialSqlPatterns: Record<string, RegExp>;
 
   // Statement State
   filters: Filter;
@@ -46,6 +47,7 @@ interface StoreState {
     updatedSection: Partial<UnparsedSection>
   ) => void;
   resetStore: () => void;
+  resetSqlPatterns: () => void;
   setSqlPattern: (key: string, pattern: RegExp) => void;
 }
 
@@ -62,6 +64,32 @@ const loadStoredData = (): ParsedFile[] => {
   }
 };
 
+// Initial SQL patterns
+const initialPatterns = {
+  function:
+    /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?([a-zA-Z0-9_]+)\s*\(/i,
+  trigger: /CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+([a-zA-Z0-9_]+)\s/i,
+  policy: /CREATE\s+POLICY\s+(?:")?([a-zA-Z0-9_\s]+)(?:")?\s+ON\s+/i,
+  index: /CREATE\s+(?:UNIQUE\s+)?INDEX\s+([a-zA-Z0-9_]+)\s+ON\s+/i,
+  type: /CREATE\s+TYPE\s+(?:public\.)?([a-zA-Z0-9_]+)\s+AS\s+/i,
+  table:
+    /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?([a-zA-Z0-9_]+)\s*\(/i,
+  view: /CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(?:public\.)?([a-zA-Z0-9_]+)\s+AS\s+/i,
+  constraint: /ADD\s+CONSTRAINT\s+([a-zA-Z0-9_]+)\s+/i,
+  grant:
+    /GRANT\s+(\w+(?:\s*,\s*\w+)*)\s+ON\s+(?:TABLE\s+)?(?:FUNCTION\s+)?(?:public\.)?([a-zA-Z0-9_]+)/i,
+  revoke:
+    /REVOKE\s+(\w+(?:\s*,\s*\w+)*)\s+ON\s+(?:TABLE\s+)?(?:FUNCTION\s+)?(?:public\.)?([a-zA-Z0-9_]+)/i,
+  comment:
+    /COMMENT\s+ON\s+(?:TABLE|COLUMN|FUNCTION|TYPE|POLICY)\s+(?:public\.)?([a-zA-Z0-9_]+)/i,
+  alter: /ALTER\s+(?:TABLE|COLUMN|TYPE)\s+(?:public\.)?([a-zA-Z0-9_]+)/i,
+  extension: /CREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i,
+  plpgsql: /DO\s+\$\$/i,
+  dropPolicy:
+    /DROP\s+POLICY\s+(?:IF\s+EXISTS\s+)?(?:")?([a-zA-Z0-9_\s]+)(?:")?/i,
+  dropTrigger: /DROP\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i,
+};
+
 export const useStore = create<StoreState>((set, get) => ({
   // Initial UI State
   currentView: "upload",
@@ -76,30 +104,8 @@ export const useStore = create<StoreState>((set, get) => ({
   uploadProgress: {},
 
   // Initial SQL Patterns from the script file
-  sqlPatterns: {
-    function:
-      /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?([a-zA-Z0-9_]+)\s*\(/i,
-    trigger: /CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+([a-zA-Z0-9_]+)\s/i,
-    policy: /CREATE\s+POLICY\s+(?:")?([a-zA-Z0-9_\s]+)(?:")?\s+ON\s+/i,
-    index: /CREATE\s+(?:UNIQUE\s+)?INDEX\s+([a-zA-Z0-9_]+)\s+ON\s+/i,
-    type: /CREATE\s+TYPE\s+(?:public\.)?([a-zA-Z0-9_]+)\s+AS\s+/i,
-    table:
-      /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?([a-zA-Z0-9_]+)\s*\(/i,
-    view: /CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(?:public\.)?([a-zA-Z0-9_]+)\s+AS\s+/i,
-    constraint: /ADD\s+CONSTRAINT\s+([a-zA-Z0-9_]+)\s+/i,
-    grant:
-      /GRANT\s+(\w+(?:\s*,\s*\w+)*)\s+ON\s+(?:TABLE\s+)?(?:FUNCTION\s+)?(?:public\.)?([a-zA-Z0-9_]+)/i,
-    revoke:
-      /REVOKE\s+(\w+(?:\s*,\s*\w+)*)\s+ON\s+(?:TABLE\s+)?(?:FUNCTION\s+)?(?:public\.)?([a-zA-Z0-9_]+)/i,
-    comment:
-      /COMMENT\s+ON\s+(?:TABLE|COLUMN|FUNCTION|TYPE|POLICY)\s+(?:public\.)?([a-zA-Z0-9_]+)/i,
-    alter: /ALTER\s+(?:TABLE|COLUMN|TYPE)\s+(?:public\.)?([a-zA-Z0-9_]+)/i,
-    extension: /CREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i,
-    plpgsql: /DO\s+\$\$/i,
-    dropPolicy:
-      /DROP\s+POLICY\s+(?:IF\s+EXISTS\s+)?(?:")?([a-zA-Z0-9_\s]+)(?:")?/i,
-    dropTrigger: /DROP\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i,
-  },
+  sqlPatterns: { ...initialPatterns },
+  initialSqlPatterns: { ...initialPatterns },
 
   // Initial Statement State
   filters: {
@@ -340,6 +346,11 @@ export const useStore = create<StoreState>((set, get) => ({
         ...state.sqlPatterns,
         [key]: pattern,
       },
+    })),
+
+  resetSqlPatterns: () =>
+    set((state) => ({
+      sqlPatterns: { ...state.initialSqlPatterns },
     })),
 
   resetStore: () => {

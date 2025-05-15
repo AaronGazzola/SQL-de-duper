@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { getDisplayName } from "@/lib/utils";
-import { useStore } from "@/store/store";
+import { useStore } from "@/Providers/store";
 import { Filter } from "@/types/app.types";
 import { Search, X } from "lucide-react";
 import { useMemo, useState } from "react";

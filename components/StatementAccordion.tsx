@@ -3,7 +3,7 @@
 import FilterBar from "@/components/FilterBar";
 import { StatementItem } from "@/components/StatementItem";
 import { Accordion } from "@/components/ui/accordion";
-import { useStore } from "@/store/store";
+import { useStore } from "@/Providers/store";
 import { Statement, UnparsedSection } from "@/types/app.types";
 import { useMemo } from "react";
 

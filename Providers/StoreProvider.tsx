@@ -6,7 +6,7 @@ interface StoreProviderProps {
   children: ReactNode;
 }
 
-export default function Provider({ children }: StoreProviderProps) {
+export default function StoreProvider({ children }: StoreProviderProps) {
   const { updateParseResults } = useStore();
 
   // Initialize store with data from localStorage if available

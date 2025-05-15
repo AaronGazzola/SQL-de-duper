@@ -1,5 +1,5 @@
 // hooks/useSQLParser.ts
-import { useStore } from "@/store/store";
+import { useStore } from "@/Providers/store";
 import { useCallback, useMemo } from "react";
 
 export function useSQLParser() {

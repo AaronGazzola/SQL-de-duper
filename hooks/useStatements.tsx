@@ -1,6 +1,6 @@
 // hooks/useStatements.ts
+import { useStore } from "@/Providers/store";
 import { StatementManager } from "@/services/StatementManager";
-import { useStore } from "@/store/store";
 import { UnparsedSection } from "@/types/app.types";
 import { useCallback, useMemo } from "react";
 

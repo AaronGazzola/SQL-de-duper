@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useStore } from "@/store/store";
+import { useStore } from "@/Providers/store";
 
 export function EditorDialog() {
   const { isEditorDialogOpen, setEditorDialogOpen } = useStore();
