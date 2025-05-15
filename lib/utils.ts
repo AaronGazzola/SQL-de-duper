@@ -65,15 +65,6 @@ export const formatSQL = (sql: string) => {
     .join("");
 };
 
-// Get display name for statement type
-export const getDisplayName = (type: string): string => {
-  // Convert SNAKE_CASE to Display Text
-  return type
-    .split("_")
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(" ");
-};
-
 // Get color for statement type
 export const getTypeColor = (type: string): string => {
   switch (type) {
@@ -95,3 +86,69 @@ export const getTypeColor = (type: string): string => {
       return "bg-gray-100 text-gray-800 hover:bg-gray-200";
   }
 };
+
+export function getDisplayName(type: string): string {
+  // Map internal type names to display-friendly names
+  const displayNames: Record<string, string> = {
+    function: "Function",
+    trigger: "Trigger",
+    policy: "Policy",
+    index: "Index",
+    type: "Type",
+    table: "Table",
+    view: "View",
+    constraint: "Constraint",
+    grant: "Grant",
+    revoke: "Revoke",
+    comment: "Comment",
+    alter: "Alter",
+    extension: "Extension",
+    plpgsql: "PL/pgSQL",
+    dropPolicy: "Drop Policy",
+    dropTrigger: "Drop Trigger",
+  };
+
+  return displayNames[type] || type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+export function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+export function truncateString(str: string, maxLength: number): string {
+  if (str.length <= maxLength) return str;
+  return str.substring(0, maxLength) + "...";
+}
+
+export function getFileExtension(filename: string): string {
+  return filename.split(".").pop()?.toLowerCase() || "";
+}
+
+export function filterUniqueByProperty<T>(array: T[], property: keyof T): T[] {
+  const seen = new Set();
+  return array.filter((item) => {
+    const value = item[property];
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}
+
+export function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
+  return array.reduce((result, item) => {
+    const groupKey = String(item[key]);
+    if (!result[groupKey]) {
+      result[groupKey] = [];
+    }
+    result[groupKey].push(item);
+    return result;
+  }, {} as Record<string, T[]>);
+}

@@ -34,14 +34,11 @@ export interface Statement {
   hash: string;
 }
 
-// Section of SQL that could not be automatically parsed
-export interface UnparsedSection {
-  id: string;
-  content: string;
-  startIndex: number;
-  endIndex: number;
-  parsed: boolean;
-  fileName: string;
+// Group of statements with the same name and type
+export interface StatementGroup {
+  name: string;
+  type: string;
+  statements: Statement[];
 }
 
 // The result of parsing a SQL file
@@ -49,7 +46,6 @@ export interface ParsedFile {
   filename: string;
   originalContent: string;
   statements: Statement[];
-  unparsedSections: UnparsedSection[];
   stats: {
     total: number;
     parsed: number;
@@ -69,7 +65,7 @@ export interface Filter {
   types: string[];
   latestOnly: boolean;
   searchTerm: string;
-  showUnparsed: boolean; // New field to toggle between parsed and unparsed
+  showUnparsed: boolean;
 }
 
 // Progress tracking for file uploads

@@ -5,7 +5,6 @@ import {
   Filter,
   ParsedFile,
   Statement,
-  UnparsedSection,
   UploadProgress,
 } from "@/types/app.types";
 import { create } from "zustand";
@@ -21,6 +20,7 @@ interface StoreState {
   parseResults: ParsedFile[];
   isProcessing: boolean;
   uploadProgress: Record<string, UploadProgress>;
+  unparsedSQL: string;
 
   // SQL Patterns
   sqlPatterns: Record<string, RegExp>;
@@ -42,10 +42,6 @@ interface StoreState {
   updateStatement: (id: string, statement: Partial<Statement>) => void;
   removeStatement: (id: string) => void;
   generateSQL: () => string;
-  updateUnparsedSection: (
-    id: string,
-    updatedSection: Partial<UnparsedSection>
-  ) => void;
   resetStore: () => void;
   resetSqlPatterns: () => void;
   setSqlPattern: (key: string, pattern: RegExp) => void;
@@ -102,6 +98,7 @@ export const useStore = create<StoreState>((set, get) => ({
   parseResults: loadStoredData(),
   isProcessing: false,
   uploadProgress: {},
+  unparsedSQL: "",
 
   // Initial SQL Patterns from the script file
   sqlPatterns: { ...initialPatterns },
@@ -112,7 +109,7 @@ export const useStore = create<StoreState>((set, get) => ({
     types: [],
     latestOnly: true,
     searchTerm: "",
-    showUnparsed: false, // Default to showing parsed statements
+    showUnparsed: false,
   },
 
   toggleSidebar: () =>
@@ -167,7 +164,16 @@ export const useStore = create<StoreState>((set, get) => ({
           const patterns = get().sqlPatterns;
 
           // Use SQLParser to parse the file
-          const parsedFile = sqlParser.parse(fileContent, file.name, patterns);
+          const { parsedFile, unparsedSQL } = sqlParser.parse(
+            fileContent,
+            file.name,
+            patterns
+          );
+
+          // Store unparsed SQL in the store
+          set((state) => ({
+            unparsedSQL: state.unparsedSQL + unparsedSQL,
+          }));
 
           // Update to 100% when done
           set((state) => ({
@@ -220,14 +226,15 @@ export const useStore = create<StoreState>((set, get) => ({
       // Find the file this statement belongs to
       const updatedResults = state.parseResults.map((file) => {
         if (file.filename === statement.fileName) {
+          const statements = [...file.statements, statement];
           return {
             ...file,
-            statements: [...file.statements, statement],
+            statements,
             stats: {
               ...file.stats,
-              parsed: file.stats.parsed + 1,
+              parsed: statements.length,
               percentage: Math.round(
-                ((file.stats.parsed + 1) / file.stats.total) * 100
+                (statements.length / file.stats.total) * 100
               ),
             },
           };
@@ -246,13 +253,22 @@ export const useStore = create<StoreState>((set, get) => ({
   updateStatement: (id, updatedStatement) =>
     set((state) => {
       const updatedResults = state.parseResults.map((file) => {
+        const statements = file.statements.map((statement) =>
+          statement.id === id
+            ? { ...statement, ...updatedStatement }
+            : statement
+        );
+
         return {
           ...file,
-          statements: file.statements.map((statement) =>
-            statement.id === id
-              ? { ...statement, ...updatedStatement }
-              : statement
-          ),
+          statements,
+          stats: {
+            ...file.stats,
+            parsed: statements.length,
+            percentage: Math.round(
+              (statements.length / file.stats.total) * 100
+            ),
+          },
         };
       });
 
@@ -267,41 +283,18 @@ export const useStore = create<StoreState>((set, get) => ({
   removeStatement: (id) =>
     set((state) => {
       const updatedResults = state.parseResults.map((file) => {
-        const statementToRemove = file.statements.find((s) => s.id === id);
+        const statements = file.statements.filter((s) => s.id !== id);
 
-        if (statementToRemove) {
-          return {
-            ...file,
-            statements: file.statements.filter((s) => s.id !== id),
-            stats: {
-              ...file.stats,
-              parsed: file.stats.parsed - 1,
-              percentage: Math.round(
-                ((file.stats.parsed - 1) / file.stats.total) * 100
-              ),
-            },
-          };
-        }
-
-        return file;
-      });
-
-      // Update localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem("parseResults", JSON.stringify(updatedResults));
-      }
-
-      return { parseResults: updatedResults };
-    }),
-
-  updateUnparsedSection: (id, updatedSection) =>
-    set((state) => {
-      const updatedResults = state.parseResults.map((file) => {
         return {
           ...file,
-          unparsedSections: file.unparsedSections.map((section) =>
-            section.id === id ? { ...section, ...updatedSection } : section
-          ),
+          statements,
+          stats: {
+            ...file.stats,
+            parsed: statements.length,
+            percentage: Math.round(
+              (statements.length / file.stats.total) * 100
+            ),
+          },
         };
       });
 
@@ -360,6 +353,7 @@ export const useStore = create<StoreState>((set, get) => ({
       parseResults: [],
       isProcessing: false,
       uploadProgress: {},
+      unparsedSQL: "",
       filters: {
         types: [],
         latestOnly: true,

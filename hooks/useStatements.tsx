@@ -1,7 +1,7 @@
 // hooks/useStatements.ts
 import { useStore } from "@/Providers/store";
 import { StatementManager } from "@/services/StatementManager";
-import { UnparsedSection } from "@/types/app.types";
+import { Statement } from "@/types/app.types";
 import { useCallback, useMemo } from "react";
 
 export function useStatements() {
@@ -12,7 +12,7 @@ export function useStatements() {
     addStatement,
     updateStatement,
     removeStatement,
-    updateUnparsedSection,
+    unparsedSQL,
   } = useStore();
 
   // Get all statements from all parsed files
@@ -20,10 +20,10 @@ export function useStatements() {
     return parseResults.flatMap((file) => file.statements);
   }, [parseResults]);
 
-  // Get all unparsed sections
-  const allUnparsedSections = useMemo(() => {
-    return parseResults.flatMap((file) => file.unparsedSections);
-  }, [parseResults]);
+  // Get statement groups (statements with same name and type)
+  const statementGroups = useMemo(() => {
+    return StatementManager.groupByNameAndType(allStatements);
+  }, [allStatements]);
 
   // Get filtered statements based on current filters
   const filteredStatements = useMemo(() => {
@@ -58,16 +58,6 @@ export function useStatements() {
     [allStatements]
   );
 
-  // Try parsing an unparsed section
-  const tryParseUnparsedSection = useCallback(
-    (section: UnparsedSection) => {
-      // This could be implemented to try to parse an unparsed section
-      // For now, just mark it as parsed
-      updateUnparsedSection(section.id, { parsed: true });
-    },
-    [updateUnparsedSection]
-  );
-
   // Update filters
   const updateFilters = useCallback(
     (newFilters: Partial<typeof filters>) => {
@@ -76,13 +66,24 @@ export function useStatements() {
     [filters, setFilters]
   );
 
+  // Find statements with the same name and type
+  const findStatementVersions = useCallback(
+    (statement: Statement) => {
+      return allStatements
+        .filter((s) => s.name === statement.name && s.type === statement.type)
+        .sort((a, b) => b.timestamp - a.timestamp); // Sort by timestamp, newest first
+    },
+    [allStatements]
+  );
+
   return {
     allStatements,
     filteredStatements,
     statementsByType,
     statementsInOrder,
     latestVersions,
-    allUnparsedSections,
+    statementGroups,
+    unparsedSQL,
     filters,
     updateFilters,
     addStatement,
@@ -90,7 +91,7 @@ export function useStatements() {
     removeStatement,
     generateSQL,
     findDependencies,
-    tryParseUnparsedSection,
+    findStatementVersions,
   };
 }
 

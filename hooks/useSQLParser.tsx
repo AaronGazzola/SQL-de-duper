@@ -11,6 +11,7 @@ export function useSQLParser() {
     removeFile,
     sqlPatterns,
     setSqlPattern,
+    unparsedSQL,
   } = useStore();
 
   // Helper to get pattern by type
@@ -30,15 +31,12 @@ export function useSQLParser() {
   // Calculate overall parsing progress
   const overallProgress = useMemo(() => {
     if (Object.keys(uploadProgress).length === 0) return 0;
-
     let totalPercentage = 0;
     let count = 0;
-
     Object.values(uploadProgress).forEach((progress) => {
       totalPercentage += progress.percentage;
       count++;
     });
-
     return count > 0 ? Math.round(totalPercentage / count) : 0;
   }, [uploadProgress]);
 
@@ -48,10 +46,9 @@ export function useSQLParser() {
       (acc, file) => {
         acc.total += file.stats.total;
         acc.parsed += file.stats.parsed;
-        acc.unparsed += file.unparsedSections.length;
         return acc;
       },
-      { total: 0, parsed: 0, unparsed: 0 }
+      { total: 0, parsed: 0 }
     );
   }, [parseResults]);
 
@@ -85,6 +82,7 @@ export function useSQLParser() {
     getPattern,
     updatePattern,
     patterns: sqlPatterns,
+    unparsedSQL,
   };
 }
 

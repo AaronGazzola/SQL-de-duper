@@ -3,73 +3,56 @@
 import FilterBar from "@/components/FilterBar";
 import { StatementItem } from "@/components/StatementItem";
 import { Accordion } from "@/components/ui/accordion";
+import { useStatements } from "@/hooks/useStatements";
 import { useStore } from "@/Providers/store";
-import { Statement, UnparsedSection } from "@/types/app.types";
 import { useMemo } from "react";
 
 export function StatementAccordion() {
-  const { parseResults, filters } = useStore();
+  const { filters } = useStore();
+  const { statementGroups, filteredStatements } = useStatements();
 
-  // Combine all statements and unparsed sections based on filter
-  const allItems = useMemo(() => {
-    const items: Array<Statement | UnparsedSection> = [];
+  // Create a grouped view of statements
+  const groupedItems = useMemo(() => {
+    if (filters.showUnparsed) {
+      return []; // We don't show unparsed content in the accordion anymore
+    }
 
-    parseResults.forEach((file) => {
-      // Add parsed statements if we're not showing unparsed sections
-      if (!filters.showUnparsed) {
-        file.statements.forEach((statement) => {
-          items.push({
-            ...statement,
-            fileName: file.filename,
-          });
-        });
-      } else {
-        // Add unparsed sections when showUnparsed is true
-        file.unparsedSections.forEach((section) => {
-          items.push({
-            ...section,
-            fileName: file.filename,
-          });
-        });
-      }
-    });
+    // If we're not showing latest only, use filtered statements directly
+    if (!filters.latestOnly) {
+      return filteredStatements.map((statement) => ({
+        id: statement.id,
+        statement,
+        versions: [statement],
+      }));
+    }
 
-    return items;
-  }, [parseResults, filters.showUnparsed]);
-
-  // Apply filters to get filtered items
-  const filteredItems = useMemo(() => {
-    return allItems.filter((item) => {
-      // For unparsed sections
-      if ("parsed" in item) {
-        // Filter by search term on content
-        if (
-          filters.searchTerm &&
-          !item.content.toLowerCase().includes(filters.searchTerm.toLowerCase())
-        ) {
+    // Otherwise, get statement groups that match the filter criteria
+    return statementGroups
+      .filter((group) => {
+        // Filter by type if types filter is active
+        if (filters.types.length > 0 && !filters.types.includes(group.type)) {
           return false;
         }
+
+        // Filter by search term
+        if (filters.searchTerm) {
+          const searchLower = filters.searchTerm.toLowerCase();
+          // Check if any statement in the group matches the search term
+          return group.statements.some(
+            (stmt) =>
+              stmt.name.toLowerCase().includes(searchLower) ||
+              stmt.content.toLowerCase().includes(searchLower)
+          );
+        }
+
         return true;
-      }
-
-      // For parsed statements
-      // Filter by type
-      if (filters.types.length > 0 && !filters.types.includes(item.type)) {
-        return false;
-      }
-
-      // Filter by search term
-      if (filters.searchTerm) {
-        const searchLower = filters.searchTerm.toLowerCase();
-        return (
-          item.name.toLowerCase().includes(searchLower) ||
-          item.content.toLowerCase().includes(searchLower)
-        );
-      }
-
-      return true;
-    });
-  }, [allItems, filters]);
+      })
+      .map((group) => ({
+        id: group.statements[0].id,
+        statement: group.statements[0], // Use the latest statement as the primary
+        versions: group.statements, // All versions for pagination
+      }));
+  }, [statementGroups, filteredStatements, filters]);
 
   return (
     <div className="w-full max-w-2xl mx-auto relative">
@@ -79,19 +62,19 @@ export function StatementAccordion() {
         collapsible
         className="w-full"
       >
-        {filteredItems.length > 0 ? (
-          filteredItems.map((item, index) => (
+        {groupedItems.length > 0 ? (
+          groupedItems.map((item) => (
             <StatementItem
               key={item.id}
-              item={item}
-              index={index}
+              statement={item.statement}
+              versions={item.versions}
             />
           ))
         ) : (
           <div className="p-8 text-center border rounded-lg">
             <p className="text-gray-500">
               {filters.showUnparsed
-                ? "No unparsed sections found."
+                ? "Unparsed content is now shown in a separate view."
                 : "No matching statements found."}
             </p>
           </div>

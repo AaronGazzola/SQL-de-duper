@@ -1,5 +1,5 @@
 // services/SQLParser.ts
-import { ParsedFile, Statement, UnparsedSection } from "@/types/app.types";
+import { ParsedFile, Statement } from "@/types/app.types";
 import { createId } from "@paralleldrive/cuid2";
 
 export class SQLParser {
@@ -13,16 +13,15 @@ export class SQLParser {
     fileContent: string,
     filename: string,
     customPatterns: Record<string, RegExp>
-  ): ParsedFile {
+  ): { parsedFile: ParsedFile; unparsedSQL: string } {
     // Use patterns from store
     this.patterns = customPatterns;
 
     // Initialize result structure
-    const result: ParsedFile = {
+    const parsedFile: ParsedFile = {
       filename,
       originalContent: fileContent,
       statements: [],
-      unparsedSections: [],
       stats: {
         total: 0,
         parsed: 0,
@@ -32,79 +31,45 @@ export class SQLParser {
 
     // Split the content into SQL statements
     const statements = this.splitIntoStatements(fileContent);
+    let unparsedSQL = "";
 
     if (statements.length === 0) {
-      // If no statements, mark entire file as unparsed
-      const unparsedSection: UnparsedSection = {
-        id: `${filename}-unparsed-0`,
-        content: fileContent,
-        startIndex: 0,
-        endIndex: fileContent.length,
-        parsed: false,
-        fileName: filename,
-      };
-      result.unparsedSections.push(unparsedSection);
-      result.stats = {
+      // If no statements, all content is unparsed
+      unparsedSQL = fileContent;
+      parsedFile.stats = {
         total: 1,
         parsed: 0,
         percentage: 0,
       };
-      return result;
+      return { parsedFile, unparsedSQL };
     }
-
-    // Find all statements using patterns
-    const allMatches: {
-      type: string;
-      name: string;
-      content: string;
-      index: number;
-    }[] = [];
 
     // Process each statement
     statements.forEach((stmt, stmtIndex) => {
       const parsed = this.parseStatement(stmt, stmtIndex, filename);
 
       if (parsed) {
-        // Add to matches
-        allMatches.push({
-          type: parsed.type,
-          name: parsed.name,
-          content: parsed.content,
-          index: fileContent.indexOf(stmt),
-        });
-
         // Add to result statements
-        result.statements.push(parsed);
+        parsedFile.statements.push(parsed);
       } else {
-        // Add to unparsed sections
-        const startIndex = fileContent.indexOf(stmt);
-        if (startIndex !== -1) {
-          const unparsedSection: UnparsedSection = {
-            id: `${filename}-unparsed-${result.unparsedSections.length}`,
-            content: stmt,
-            startIndex,
-            endIndex: startIndex + stmt.length,
-            parsed: false,
-            fileName: filename,
-          };
-          result.unparsedSections.push(unparsedSection);
-        }
+        // Add to unparsed SQL string
+        unparsedSQL += stmt + "\n\n";
       }
     });
 
     // Calculate stats
-    const total = result.statements.length + result.unparsedSections.length;
-    const parsed = result.statements.length;
+    const total = parsedFile.statements.length + (unparsedSQL ? 1 : 0);
+    const parsed = parsedFile.statements.length;
     const percentage = total > 0 ? Math.round((parsed / total) * 100) : 0;
 
     // Update result stats
-    result.stats = {
+    parsedFile.stats = {
       total,
       parsed,
       percentage,
     };
 
-    return result;
+    return { parsedFile, unparsedSQL };
   }
 
   private parseStatement(

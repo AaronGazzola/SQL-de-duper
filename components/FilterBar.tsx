@@ -3,8 +3,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { cn, getDisplayName } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
 import { Filter } from "@/types/app.types";
@@ -40,12 +38,6 @@ export function FilterBar() {
 
     handleFilterChange({
       types: newTypes,
-    });
-  };
-
-  const handleShowUnparsedToggle = () => {
-    handleFilterChange({
-      showUnparsed: !filters.showUnparsed,
     });
   };
 
@@ -112,7 +104,20 @@ export function FilterBar() {
 
         {availableTypes.length > 0 && (
           <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-medium">Filter by Type</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">Filter by Type</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearFilters}
+                className={cn(
+                  "text-sm text-gray-500",
+                  !filtersActive && "opacity-0"
+                )}
+              >
+                Clear all filters
+              </Button>
+            </div>
 
             <div className="flex flex-wrap gap-2">
               {availableTypes.map((type) => (
@@ -128,30 +133,6 @@ export function FilterBar() {
             </div>
           </div>
         )}
-
-        <div className="flex items-center justify-between space-x-2">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="unparsed-switch"
-              checked={filters.showUnparsed}
-              onCheckedChange={handleShowUnparsedToggle}
-            />
-            <Label htmlFor="unparsed-switch">Show unparsed sections</Label>
-          </div>
-          <div className="flex justify-between items-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearFilters}
-              className={cn(
-                "text-sm text-gray-500",
-                !filtersActive && "opacity-0"
-              )}
-            >
-              Clear all filters
-            </Button>
-          </div>
-        </div>
       </div>
     </div>
   );

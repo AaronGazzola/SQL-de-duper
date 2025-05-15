@@ -1,198 +1,166 @@
 // services/StatementManager.ts
-import { Statement } from "@/types/app.types";
+import { Filter, Statement, StatementGroup } from "@/types/app.types";
 
 export class StatementManager {
-  /**
-   * Gets the latest version of each statement by type and name
-   */
-  static getLatestVersions(statements: Statement[]): Statement[] {
-    const latest = new Map<string, Statement>();
+  // Group statements by name and type to identify versions of the same object
+  static groupByNameAndType(statements: Statement[]): StatementGroup[] {
+    const groups: Record<string, StatementGroup> = {};
 
     statements.forEach((statement) => {
-      const key = `${statement.type}-${statement.name}`;
-      if (
-        !latest.has(key) ||
-        latest.get(key)!.timestamp < statement.timestamp
-      ) {
-        latest.set(key, statement);
+      const key = `${statement.type}:${statement.name}`;
+
+      if (!groups[key]) {
+        groups[key] = {
+          name: statement.name,
+          type: statement.type,
+          statements: [],
+        };
       }
+
+      groups[key].statements.push(statement);
     });
 
-    return Array.from(latest.values());
+    // Sort statements within each group by timestamp (newest first)
+    Object.values(groups).forEach((group) => {
+      group.statements.sort((a, b) => b.timestamp - a.timestamp);
+    });
+
+    return Object.values(groups);
   }
 
-  /**
-   * Orders statements by type priority and execution dependencies
-   */
+  // Filter statements based on user-selected filters
+  static filterStatements(
+    statements: Statement[],
+    filters: Filter
+  ): Statement[] {
+    let filteredStatements = [...statements];
+
+    // Filter by type
+    if (filters.types.length > 0) {
+      filteredStatements = filteredStatements.filter((statement) =>
+        filters.types.includes(statement.type)
+      );
+    }
+
+    // Filter by search term
+    if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
+      filteredStatements = filteredStatements.filter(
+        (statement) =>
+          statement.name.toLowerCase().includes(searchLower) ||
+          statement.content.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Filter to only latest version of each object
+    if (filters.latestOnly) {
+      const groups = this.groupByNameAndType(filteredStatements);
+      filteredStatements = groups.map((group) => group.statements[0]);
+    }
+
+    return filteredStatements;
+  }
+
+  // Group statements by type
+  static groupByType(statements: Statement[]): Record<string, Statement[]> {
+    const groupedByType: Record<string, Statement[]> = {};
+
+    statements.forEach((statement) => {
+      if (!groupedByType[statement.type]) {
+        groupedByType[statement.type] = [];
+      }
+      groupedByType[statement.type].push(statement);
+    });
+
+    return groupedByType;
+  }
+
+  // Order statements for execution (e.g., tables before indices)
   static orderForExecution(statements: Statement[]): Statement[] {
-    // Define type priority (based on the OBJECT_TYPE_ORDER in the original script)
-    const typePriority: Record<string, number> = {
-      EXTENSION: 1, // Extensions first
-      TYPE: 2, // Then types
-      TABLE: 3, // Then tables
-      VIEW: 4, // Then views
-      FUNCTION: 5, // Then functions
-      TRIGGER: 6, // Then triggers that might use functions
-      INDEX: 7, // Then indexes
-      CONSTRAINT: 8, // Then constraints
-      POLICY: 9, // Then policies
-      COMMENT: 10, // Then comments
-      GRANT: 11, // Then grants
-      REVOKE: 12, // Then revokes
-      ALTER: 13, // Then alters
-      PLPGSQL: 14, // Then any PL/pgSQL blocks
-      CUSTOM: 99, // Custom statements last
+    // Define execution order by type
+    const typeOrder: Record<string, number> = {
+      extension: 1,
+      type: 2,
+      table: 3,
+      function: 4,
+      view: 5,
+      index: 6,
+      trigger: 7,
+      constraint: 8,
+      policy: 9,
+      grant: 10,
+      comment: 11,
+      alter: 12,
     };
 
     return [...statements].sort((a, b) => {
-      // First sort by type priority
-      const aPriority = typePriority[a.type] || 999;
-      const bPriority = typePriority[b.type] || 999;
-
-      if (aPriority !== bPriority) {
-        return aPriority - bPriority;
-      }
-
-      // If same type, sort by name
-      return a.name.localeCompare(b.name);
+      const orderA = typeOrder[a.type] || 100;
+      const orderB = typeOrder[b.type] || 100;
+      return orderA - orderB;
     });
   }
 
-  /**
-   * Filters statements based on specified criteria
-   */
-  static filterStatements(
-    statements: Statement[],
-    filters: {
-      types?: string[];
-      searchTerm?: string;
-      latestOnly?: boolean;
-    }
-  ): Statement[] {
-    let filtered = [...statements];
-
-    // Apply type filters
-    if (filters.types && filters.types.length > 0) {
-      filtered = filtered.filter((statement) =>
-        filters.types!.includes(statement.type)
-      );
-    }
-
-    // Apply search term filter
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (statement) =>
-          statement.name.toLowerCase().includes(searchLower) ||
-          statement.content.toLowerCase().includes(searchLower) ||
-          statement.type.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Apply latest only filter
-    if (filters.latestOnly) {
-      filtered = this.getLatestVersions(filtered);
-    }
-
-    return filtered;
+  // Get only the latest version of each statement
+  static getLatestVersions(statements: Statement[]): Statement[] {
+    const groups = this.groupByNameAndType(statements);
+    return groups.map((group) => group.statements[0]);
   }
 
-  /**
-   * Generates SQL from statements with proper ordering and grouping
-   */
+  // Generate SQL from filtered statements
   static generateSQL(statements: Statement[]): string {
-    // Get latest version and order for execution
-    const latest = this.getLatestVersions(statements);
-    const ordered = this.orderForExecution(latest);
+    let generatedSQL = "-- Generated SQL\n\n";
 
-    // Group statements by type for better readability
-    const groupedByType: Record<string, Statement[]> = {};
+    // Group by type for organization
+    const groupedByType = this.groupByType(statements);
 
-    ordered.forEach((stmt) => {
-      if (!groupedByType[stmt.type]) {
-        groupedByType[stmt.type] = [];
+    // Add statements by type in execution order
+    const typeOrder = [
+      "extension",
+      "type",
+      "table",
+      "function",
+      "view",
+      "index",
+      "trigger",
+      "constraint",
+      "policy",
+      "grant",
+      "comment",
+      "alter",
+    ];
+
+    typeOrder.forEach((type) => {
+      if (groupedByType[type] && groupedByType[type].length > 0) {
+        generatedSQL += `-- ${type.toUpperCase()} Statements\n`;
+        groupedByType[type].forEach((statement) => {
+          generatedSQL += `${statement.content}\n\n`;
+        });
+        generatedSQL += "\n";
       }
-      groupedByType[stmt.type].push(stmt);
     });
 
-    // Generate SQL with comments
-    let generatedSQL = "-- Consolidated SQL Migration\n";
-    generatedSQL += `-- Generated on ${new Date().toISOString()}\n\n`;
-
-    // Add count summary of all objects
-    generatedSQL += `-- Object counts:\n`;
-    let totalObjects = 0;
-
-    Object.entries(groupedByType).forEach(([type, stmts]) => {
-      generatedSQL += `-- ${type}: ${stmts.length}\n`;
-      totalObjects += stmts.length;
-    });
-
-    generatedSQL += `-- Total objects: ${totalObjects}\n\n`;
-
-    // Add objects by type
-    Object.entries(groupedByType).forEach(([type, stmts]) => {
-      generatedSQL += `-- ============================================\n`;
-      generatedSQL += `-- Type: ${type} (${stmts.length} objects)\n`;
-      generatedSQL += `-- ============================================\n\n`;
-
-      stmts.forEach((stmt) => {
-        // Add metadata as comments
-        generatedSQL += `-- From: ${stmt.fileName}\n`;
-        generatedSQL += `-- Object: ${stmt.name}\n`;
-
-        // Add the SQL content
-        generatedSQL += `${stmt.content}\n\n`;
-      });
-
-      generatedSQL += "\n";
+    // Add any other types not in the predefined order
+    Object.keys(groupedByType).forEach((type) => {
+      if (!typeOrder.includes(type)) {
+        generatedSQL += `-- ${type.toUpperCase()} Statements\n`;
+        groupedByType[type].forEach((statement) => {
+          generatedSQL += `${statement.content}\n\n`;
+        });
+        generatedSQL += "\n";
+      }
     });
 
     return generatedSQL;
   }
 
-  /**
-   * Finds statements that reference a specific object
-   */
+  // Find statements that may depend on a given object
   static findDependencies(
     statements: Statement[],
     objectName: string
   ): Statement[] {
-    return statements.filter((statement) => {
-      const contentLower = statement.content.toLowerCase();
-      const objectNameLower = objectName.toLowerCase();
-
-      // Skip if this is the statement defining the object
-      if (statement.name.toLowerCase() === objectNameLower) {
-        return false;
-      }
-
-      // Check for references in the content
-      return (
-        contentLower.includes(` ${objectNameLower} `) ||
-        contentLower.includes(` ${objectNameLower}(`) ||
-        contentLower.includes(` ${objectNameLower}.`) ||
-        contentLower.includes(`(${objectNameLower}`) ||
-        contentLower.includes(` on ${objectNameLower}`) ||
-        contentLower.includes(` on public.${objectNameLower}`)
-      );
-    });
-  }
-
-  /**
-   * Groups statements by type
-   */
-  static groupByType(statements: Statement[]): Record<string, Statement[]> {
-    const grouped: Record<string, Statement[]> = {};
-
-    statements.forEach((statement) => {
-      if (!grouped[statement.type]) {
-        grouped[statement.type] = [];
-      }
-      grouped[statement.type].push(statement);
-    });
-
-    return grouped;
+    return statements.filter((statement) =>
+      statement.content.toLowerCase().includes(objectName.toLowerCase())
+    );
   }
 }
 
