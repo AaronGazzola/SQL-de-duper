@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { getDisplayName } from "@/lib/utils";
+import { cn, getDisplayName } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
 import { Filter } from "@/types/app.types";
 import { Search, X } from "lucide-react";
@@ -43,9 +43,9 @@ export function FilterBar() {
     });
   };
 
-  const handleLatestOnlyToggle = () => {
+  const handleShowUnparsedToggle = () => {
     handleFilterChange({
-      latestOnly: !filters.latestOnly,
+      showUnparsed: !filters.showUnparsed,
     });
   };
 
@@ -73,10 +73,14 @@ export function FilterBar() {
       types: [],
       latestOnly: true,
       searchTerm: "",
+      showUnparsed: false,
     });
   };
 
-  const filtersActive = filters.types.length > 0 || filters.searchTerm !== "";
+  const filtersActive =
+    filters.types.length > 0 ||
+    filters.searchTerm !== "" ||
+    filters.showUnparsed;
 
   return (
     <div className="border rounded-lg p-4 mb-6 bg-white sticky top-0 z-50">
@@ -125,26 +129,28 @@ export function FilterBar() {
           </div>
         )}
 
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-between space-x-2">
+          <div className="flex items-center gap-2">
             <Switch
-              id="latest-switch"
-              checked={filters.latestOnly}
-              onCheckedChange={handleLatestOnlyToggle}
+              id="unparsed-switch"
+              checked={filters.showUnparsed}
+              onCheckedChange={handleShowUnparsedToggle}
             />
-            <Label htmlFor="latest-switch">Show latest version only</Label>
+            <Label htmlFor="unparsed-switch">Show unparsed sections</Label>
           </div>
-
-          {filtersActive && (
+          <div className="flex justify-between items-center">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleClearFilters}
-              className="text-sm text-gray-500"
+              className={cn(
+                "text-sm text-gray-500",
+                !filtersActive && "opacity-0"
+              )}
             >
               Clear all filters
             </Button>
-          )}
+          </div>
         </div>
       </div>
     </div>

@@ -69,6 +69,7 @@ export interface Filter {
   types: string[];
   latestOnly: boolean;
   searchTerm: string;
+  showUnparsed: boolean; // New field to toggle between parsed and unparsed
 }
 
 // Progress tracking for file uploads

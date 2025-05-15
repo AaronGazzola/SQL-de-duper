@@ -26,6 +26,7 @@ export function StatementItem({
   index: number;
 }) {
   const { setEditorDialogOpen, setRawEditorSQL } = useStore();
+
   // Determine if this is a parsed statement or unparsed section
   const isParsed = !("parsed" in item);
 

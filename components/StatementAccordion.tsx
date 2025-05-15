@@ -10,32 +10,37 @@ import { useMemo } from "react";
 export function StatementAccordion() {
   const { parseResults, filters } = useStore();
 
-  // Combine all statements and unparsed sections
+  // Combine all statements and unparsed sections based on filter
   const allItems = useMemo(() => {
     const items: Array<Statement | UnparsedSection> = [];
+
     parseResults.forEach((file) => {
-      // Add parsed statements
-      file.statements.forEach((statement) => {
-        items.push({
-          ...statement,
-          fileName: file.filename,
+      // Add parsed statements if we're not showing unparsed sections
+      if (!filters.showUnparsed) {
+        file.statements.forEach((statement) => {
+          items.push({
+            ...statement,
+            fileName: file.filename,
+          });
         });
-      });
-      // Add unparsed sections
-      file.unparsedSections.forEach((section) => {
-        items.push({
-          ...section,
-          fileName: file.filename,
+      } else {
+        // Add unparsed sections when showUnparsed is true
+        file.unparsedSections.forEach((section) => {
+          items.push({
+            ...section,
+            fileName: file.filename,
+          });
         });
-      });
+      }
     });
+
     return items;
-  }, [parseResults]);
+  }, [parseResults, filters.showUnparsed]);
 
   // Apply filters to get filtered items
   const filteredItems = useMemo(() => {
     return allItems.filter((item) => {
-      // For unparsed sections, we always show them if no filters are applied
+      // For unparsed sections
       if ("parsed" in item) {
         // Filter by search term on content
         if (
@@ -84,7 +89,11 @@ export function StatementAccordion() {
           ))
         ) : (
           <div className="p-8 text-center border rounded-lg">
-            <p className="text-gray-500">No matching statements found.</p>
+            <p className="text-gray-500">
+              {filters.showUnparsed
+                ? "No unparsed sections found."
+                : "No matching statements found."}
+            </p>
           </div>
         )}
       </Accordion>

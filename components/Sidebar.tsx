@@ -1,3 +1,4 @@
+// components/AppSidebar.tsx
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
 import { ParsedFile } from "@/types/app.types";
-import { Download, Menu, RefreshCw, RotateCcw } from "lucide-react";
+import { Code, Download, Menu, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 export default function AppSidebar() {
@@ -36,6 +37,7 @@ export default function AppSidebar() {
     resetStore,
     resetSqlPatterns,
     setUploadDialogOpen,
+    setEditorDialogOpen,
   } = useStore();
 
   // Sync the sidebar state with the store
@@ -92,6 +94,10 @@ export default function AppSidebar() {
     toggleSidebar();
   };
 
+  const handleOpenSQLEditor = () => {
+    setEditorDialogOpen(true);
+  };
+
   return (
     <Sidebar collapsible="icon">
       <SidebarContent className="h-full bg-gray-100 dark:bg-gray-900 border-r dark:border-gray-800 overflow-x-hidden gap-0 ">
@@ -113,6 +119,23 @@ export default function AppSidebar() {
             </Button>
           </div>
         </SidebarHeader>
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleOpenSQLEditor}
+                  tooltip="SQL Editor"
+                  className="cursor-pointer"
+                >
+                  <Code className="h-5 w-5" />
+                  <span>SQL Editor</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
         <SidebarGroup>
           <SidebarGroupContent>

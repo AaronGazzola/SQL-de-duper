@@ -112,6 +112,7 @@ export const useStore = create<StoreState>((set, get) => ({
     types: [],
     latestOnly: true,
     searchTerm: "",
+    showUnparsed: false, // Default to showing parsed statements
   },
 
   toggleSidebar: () =>
@@ -363,6 +364,7 @@ export const useStore = create<StoreState>((set, get) => ({
         types: [],
         latestOnly: true,
         searchTerm: "",
+        showUnparsed: false,
       },
       rawEditorSQL: "",
       isEditorDialogOpen: false,

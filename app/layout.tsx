@@ -1,10 +1,6 @@
-import Sidebar from "@/components/Sidebar";
-
-import { SidebarProvider } from "@/components/ui/sidebar";
-import StoreProvider from "@/Providers/StoreProvider";
+import AppLayout from "@/components/AppLayout";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,23 +28,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex h-screen overflow-hidden`}
       >
-        <StoreProvider>
-          <SidebarProvider>
-            <Sidebar />
-            <main className="flex-1 overflow-auto">{children}</main>
-            <Toaster
-              toastOptions={{
-                style: {
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  boxShadow: "none",
-                  justifyContent: "end",
-                },
-              }}
-            />
-          </SidebarProvider>
-        </StoreProvider>
+        <AppLayout>{children}</AppLayout>
       </body>
     </html>
   );
