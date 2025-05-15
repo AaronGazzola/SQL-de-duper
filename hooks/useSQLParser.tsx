@@ -1,4 +1,5 @@
 // hooks/useSQLParser.ts
+
 import { useStore } from "@/Providers/store";
 import { useCallback, useMemo } from "react";
 
@@ -14,13 +15,13 @@ export function useSQLParser() {
     unparsedSQL,
   } = useStore();
 
-  // Helper to get pattern by type
+  // Modified to handle the new array of patterns
   const getPattern = useCallback(
     (type: string) => sqlPatterns[type] || null,
     [sqlPatterns]
   );
 
-  // Helper to update a specific pattern
+  // Modified to handle adding a new pattern to the array
   const updatePattern = useCallback(
     (type: string, pattern: RegExp) => {
       setSqlPattern(type, pattern);
@@ -28,7 +29,6 @@ export function useSQLParser() {
     [setSqlPattern]
   );
 
-  // Calculate overall parsing progress
   const overallProgress = useMemo(() => {
     if (Object.keys(uploadProgress).length === 0) return 0;
     let totalPercentage = 0;
@@ -40,7 +40,6 @@ export function useSQLParser() {
     return count > 0 ? Math.round(totalPercentage / count) : 0;
   }, [uploadProgress]);
 
-  // Get total stats across all parsed files
   const aggregatedStats = useMemo(() => {
     return parseResults.reduce(
       (acc, file) => {
@@ -52,13 +51,11 @@ export function useSQLParser() {
     );
   }, [parseResults]);
 
-  // Calculate overall success rate
   const overallSuccessRate = useMemo(() => {
     const { total, parsed } = aggregatedStats;
     return total > 0 ? Math.round((parsed / total) * 100) : 0;
   }, [aggregatedStats]);
 
-  // Get unique statement types from all parsed results
   const statementTypes = useMemo(() => {
     const types = new Set<string>();
     parseResults.forEach((file) => {

@@ -3,25 +3,20 @@ import { ParsedFile, Statement } from "@/types/app.types";
 import { createId } from "@paralleldrive/cuid2";
 
 export class SQLParser {
-  private patterns: Record<string, RegExp> = {};
+  private patterns: Record<string, RegExp[]> = {};
 
-  constructor() {
-    // Initialize with empty patterns, will be passed from store
-  }
+  constructor() {}
 
   public parse(
     fileContent: string,
     filename: string,
-    customPatterns: Record<string, RegExp>
+    customPatterns: Record<string, RegExp[]>
   ): { parsedFile: ParsedFile; unparsedSQL: string } {
-    // Use patterns from store
     this.patterns = customPatterns;
 
-    // Split the content into lines to count total lines
     const allLines = fileContent.split("\n").filter((line) => line.trim());
     const totalLines = allLines.length;
 
-    // Initialize result structure
     const parsedFile: ParsedFile = {
       filename,
       originalContent: fileContent,
@@ -33,18 +28,15 @@ export class SQLParser {
       },
     };
 
-    // Extract timestamp from filename if present (format: migration_YYYYMMDDHHMMSS_name.sql)
     const timestampMatch = filename.match(/_(\d{14})_/);
     const fileTimestamp = timestampMatch
       ? this.parseTimestamp(timestampMatch[1])
       : Date.now();
 
-    // Split the content into SQL statements
     const statements = this.splitIntoStatements(fileContent);
     let unparsedSQL = "";
 
     if (statements.length === 0) {
-      // If no statements, all content is unparsed
       unparsedSQL = fileContent;
       parsedFile.stats = {
         total: totalLines,
@@ -54,10 +46,8 @@ export class SQLParser {
       return { parsedFile, unparsedSQL };
     }
 
-    // Count lines in parsed statements to calculate parsed lines
     let parsedLines = 0;
 
-    // Process each statement
     statements.forEach((stmt, stmtIndex) => {
       const parsed = this.parseStatement(
         stmt,
@@ -67,22 +57,17 @@ export class SQLParser {
       );
 
       if (parsed) {
-        // Add to result statements
         parsedFile.statements.push(parsed);
-        // Count lines in this parsed statement
         parsedLines += stmt.split("\n").filter((line) => line.trim()).length;
       } else {
-        // Add to unparsed SQL string
         unparsedSQL += stmt + "\n\n";
       }
     });
 
-    // Calculate stats based on the number of lines
     const parsed = parsedLines;
     const total = totalLines;
     const percentage = total > 0 ? Math.round((parsed / total) * 100) : 0;
 
-    // Update result stats
     parsedFile.stats = {
       total,
       parsed,
@@ -93,17 +78,15 @@ export class SQLParser {
   }
 
   private parseTimestamp(timestamp: string): number {
-    // Parse timestamp from migration filename (YYYYMMDDHHMMSS format)
     try {
       const year = parseInt(timestamp.substring(0, 4));
-      const month = parseInt(timestamp.substring(4, 6)) - 1; // Months are 0-indexed in JS
+      const month = parseInt(timestamp.substring(4, 6)) - 1;
       const day = parseInt(timestamp.substring(6, 8));
       const hour = parseInt(timestamp.substring(8, 10));
       const minute = parseInt(timestamp.substring(10, 12));
       const second = parseInt(timestamp.substring(12, 14));
 
       return new Date(year, month, day, hour, minute, second).getTime();
-
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       return Date.now();
@@ -116,7 +99,6 @@ export class SQLParser {
     filename: string,
     timestamp: number
   ): Statement | null {
-    // Skip statements that are purely comments
     if (
       statement.trim().startsWith("--") &&
       !statement.includes("CREATE POLICY")
@@ -124,7 +106,6 @@ export class SQLParser {
       return null;
     }
 
-    // Special handling for trigger definitions
     if (
       statement.includes("trigger_update_test_labels_timestamp") &&
       statement.includes("-- Add a trigger to update the updated_at timestamp")
@@ -140,35 +121,17 @@ export class SQLParser {
       };
     }
 
-    // Check against each pattern
-    for (const [type, pattern] of Object.entries(this.patterns)) {
-      // Reset the lastIndex to ensure proper matching
-      pattern.lastIndex = 0;
-
-      const match = pattern.exec(statement);
-
-      if (match) {
-        // Determine the name based on the pattern type
-        let name = "";
-
-        // For most patterns, the name is in the first capture group
-        if (match[1]) {
-          name = match[1].trim();
-        } else {
-          // For patterns like plpgsql that may not have a name, generate a unique name
-          name = `anonymous_${type}_${createId().substring(0, 8)}`;
-        }
-
-        // For grant/revoke patterns, the object name is in the second capture group
-        if ((type === "grant" || type === "revoke") && match[2]) {
-          name = match[2].trim();
-        }
-
+    // First, check for RLS statements
+    if (statement.includes("ROW LEVEL SECURITY")) {
+      const rlsMatch = statement.match(
+        /ALTER\s+TABLE\s+(?:public\.)?([a-zA-Z0-9_]+)\s+(?:ENABLE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY/i
+      );
+      if (rlsMatch && rlsMatch[1]) {
         return {
           id: `${filename}-${index}`,
           fileName: filename,
-          type,
-          name,
+          type: "alterRLSPolicy",
+          name: rlsMatch[1],
           content: statement,
           timestamp: timestamp,
           hash: this.generateHash(statement),
@@ -176,29 +139,117 @@ export class SQLParser {
       }
     }
 
-    // Check for special cases like ALTER TABLE, DROP POLICY, etc.
+    // Check against each pattern type
+    for (const [type, patternArray] of Object.entries(this.patterns)) {
+      // Check each pattern for this type
+      for (const pattern of patternArray) {
+        pattern.lastIndex = 0;
+        const match = pattern.exec(statement);
+
+        if (match) {
+          let name = "";
+
+          if (match[1]) {
+            name = match[1].trim();
+          } else if (match[2]) {
+            name = match[2].trim();
+          } else {
+            name = `anonymous_${type}_${createId().substring(0, 8)}`;
+          }
+
+          if ((type === "grant" || type === "revoke") && match[2]) {
+            name = match[2].trim();
+          }
+
+          return {
+            id: `${filename}-${index}`,
+            fileName: filename,
+            type,
+            name,
+            content: statement,
+            timestamp: timestamp,
+            hash: this.generateHash(statement),
+          };
+        }
+      }
+    }
+
+    // Fall back to checking for specific statements types
     // DROP statements
     const dropMatch = statement.match(
       /DROP\s+(\w+)\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-zA-Z0-9_]+)/i
     );
     if (dropMatch && dropMatch[1] && dropMatch[2]) {
+      const objectType = dropMatch[1].toLowerCase();
+      const objectName = dropMatch[2];
+
       return {
         id: `${filename}-${index}`,
         fileName: filename,
-        type: "alter",
-        name: dropMatch[2],
+        type: `drop${objectType.charAt(0).toUpperCase() + objectType.slice(1)}`,
+        name: objectName,
         content: statement,
         timestamp: timestamp,
         hash: this.generateHash(statement),
       };
     }
 
-    // If no match found, return null
+    // ALTER statements that aren't caught by other patterns
+    const alterMatch = statement.match(
+      /ALTER\s+(\w+)\s+(?:public\.)?([a-zA-Z0-9_]+)/i
+    );
+    if (alterMatch && alterMatch[1] && alterMatch[2]) {
+      return {
+        id: `${filename}-${index}`,
+        fileName: filename,
+        type: "alter",
+        name: alterMatch[2],
+        content: statement,
+        timestamp: timestamp,
+        hash: this.generateHash(statement),
+      };
+    }
+
+    // If we get here and still haven't matched, try one more general pattern for common SQL statements
+    const genericMatch = statement.match(
+      /(CREATE|ALTER|DROP|INSERT|UPDATE|DELETE)\s+(?:OR\s+REPLACE\s+)?(?:\w+\s+)*(?:public\.)?([a-zA-Z0-9_]+)/i
+    );
+    if (genericMatch && genericMatch[1] && genericMatch[2]) {
+      const action = genericMatch[1].toLowerCase();
+      const objectName = genericMatch[2];
+
+      return {
+        id: `${filename}-${index}`,
+        fileName: filename,
+        type: action,
+        name: objectName,
+        content: statement,
+        timestamp: timestamp,
+        hash: this.generateHash(statement),
+      };
+    }
+
+    // Check for BEGIN statements often used in SQL blocks
+    if (
+      statement.trim().startsWith("BEGIN") ||
+      statement.trim().startsWith("DO $$")
+    ) {
+      const name = `sql_block_${createId().substring(0, 8)}`;
+      return {
+        id: `${filename}-${index}`,
+        fileName: filename,
+        type: "plpgsql",
+        name: name,
+        content: statement,
+        timestamp: timestamp,
+        hash: this.generateHash(statement),
+      };
+    }
+
     return null;
   }
 
   private splitIntoStatements(content: string): string[] {
-    // Enhanced splitting logic that handles complex SQL constructs
     const statements: string[] = [];
     let currentStatement = "";
     let inFunction = false;
@@ -207,8 +258,6 @@ export class SQLParser {
     let dollarCount = 0;
     let bracketCount = 0;
 
-    // Pre-process: Replace semicolons inside certain string patterns to avoid splitting there
-    // This is a temporary replacement for processing
     const replacedContent = content.replace(
       /(EXECUTE FUNCTION.*?\(\);)/g,
       (match) => match.replace(";", "###SEMICOLON###")
@@ -220,13 +269,11 @@ export class SQLParser {
       const line = lines[i];
       const trimmedLine = line.trim();
 
-      // Skip empty lines
       if (!trimmedLine) {
         currentStatement += line + "\n";
         continue;
       }
 
-      // Handle multi-line comments
       if (line.includes("/*") && !line.includes("*/")) {
         inMultiLineComment = true;
       }
@@ -238,20 +285,16 @@ export class SQLParser {
         continue;
       }
 
-      // Count dollar sign delimiters for function bodies
       const dollarMatches = line.match(/\$\$/g);
       if (dollarMatches) {
         dollarCount += dollarMatches.length;
-        // In PL/pgSQL, an even number means we've opened and closed delimiter pairs
         inFunction = dollarCount % 2 !== 0;
       }
 
-      // Count bracket depth for complex expressions
       const openBrackets = (line.match(/\(/g) || []).length;
       const closeBrackets = (line.match(/\)/g) || []).length;
       bracketCount += openBrackets - closeBrackets;
 
-      // New detection for trigger definitions
       if (
         trimmedLine.match(/CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+/i) &&
         !trimmedLine.includes(";")
@@ -259,7 +302,6 @@ export class SQLParser {
         inTrigger = true;
       }
 
-      // If line contains EXECUTE FUNCTION and ends with ); we've reached the end of a trigger
       if (
         inTrigger &&
         trimmedLine.match(/EXECUTE\s+(?:PROCEDURE|FUNCTION)/i) &&
@@ -268,50 +310,38 @@ export class SQLParser {
         inTrigger = false;
       }
 
-      // Add line to current statement
       currentStatement += line + "\n";
 
-      // Check for function/procedure end
       if (inFunction && line.includes("$$;")) {
         inFunction = false;
-        dollarCount = 0; // Reset dollar count
+        dollarCount = 0;
         statements.push(currentStatement.trim());
         currentStatement = "";
         continue;
       }
 
-      // Check for DO block which may contain $$ delimiters
       if (trimmedLine.startsWith("DO $$")) {
         inFunction = true;
       }
 
-      // Special handling for nested SQL with semicolons
       if (!inFunction && !inTrigger && bracketCount === 0) {
-        // Find true statement ending semicolons (not those inside parentheses or strings)
-        // Replace any temporary semicolon markers back to real semicolons
         if (trimmedLine.endsWith(";")) {
           const stmt = currentStatement.replace(/###SEMICOLON###/g, ";").trim();
 
-          // Enhanced logic to detect if the current statement contains CREATE TRIGGER
-          // and the next statement starts with CREATE FUNCTION
           const isCreateTrigger = stmt.match(
             /CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+/i
           );
 
-          // Look ahead to see if the next line might start a new CREATE FUNCTION
           const nextNonEmptyLine = this.findNextNonEmptyLine(lines, i + 1);
           const hasNextCreateFunction =
             nextNonEmptyLine !== null &&
             nextNonEmptyLine.match(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+/i);
 
           if (isCreateTrigger && hasNextCreateFunction) {
-            // Don't split yet - this is part of a trigger-function pair
             continue;
           }
 
-          // Special handling for multiple statements in a single block (like trigger creation + alter table)
           if (stmt.includes("CREATE TRIGGER") && stmt.includes("ALTER TABLE")) {
-            // Split into separate statements
             const triggerEndIndex = stmt.indexOf("ALTER TABLE");
             if (triggerEndIndex > 0) {
               const triggerStmt = stmt.substring(0, triggerEndIndex).trim();
@@ -332,14 +362,12 @@ export class SQLParser {
             }
           }
 
-          // For normal statements, split on semicolon
           statements.push(stmt);
           currentStatement = "";
         }
       }
     }
 
-    // Add any remaining statement
     if (currentStatement.trim()) {
       statements.push(currentStatement.replace(/###SEMICOLON###/g, ";").trim());
     }
@@ -360,18 +388,16 @@ export class SQLParser {
   }
 
   private generateHash(content: string): string {
-    // Simple hash function for demo purposes
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
       const char = content.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
+      hash = hash & hash;
     }
     return hash.toString(16);
   }
 
   public getStatementType(patternType: string): string {
-    // Map pattern type to statement type
     const typeMap: Record<string, string> = {
       function: "FUNCTION",
       trigger: "TRIGGER",
@@ -387,10 +413,30 @@ export class SQLParser {
       alter: "ALTER",
       extension: "EXTENSION",
       plpgsql: "PLPGSQL",
+      alterRLSPolicy: "RLS_POLICY",
+      dropTable: "DROP_TABLE",
+      dropFunction: "DROP_FUNCTION",
+      dropPolicy: "DROP_POLICY",
+      dropTrigger: "DROP_TRIGGER",
+      dropView: "DROP_VIEW",
+      create: "CREATE",
+      update: "UPDATE",
+      delete: "DELETE",
+      insert: "INSERT",
+      check: "CHECK_FUNCTION",
+      authorize: "AUTHORIZE_FUNCTION",
+      custom_access_token_hook: "ACCESS_TOKEN_HOOK",
+      milestone: "MILESTONE_FUNCTION",
+      contract: "CONTRACT_FUNCTION",
+      task: "TASK_FUNCTION",
+      invitation: "INVITATION_FUNCTION",
+      proposal: "PROPOSAL_FUNCTION",
+      payment: "PAYMENT_FUNCTION",
+      project: "PROJECT_FUNCTION",
+      profile: "PROFILE_FUNCTION",
+      app_data: "APP_DATA_FUNCTION",
     };
 
     return typeMap[patternType] || "CUSTOM";
   }
 }
-
-export default SQLParser;
