@@ -21,7 +21,9 @@ export default function AppLayout({
     <StoreProvider>
       <SidebarProvider>
         <Sidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto flex flex-col items-center">
+          {children}
+        </main>
         <Toaster
           toastOptions={{
             style: {

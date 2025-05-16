@@ -3,10 +3,11 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn, getDisplayName } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
 import { Filter } from "@/types/app.types";
-import { Search, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export function FilterBar() {
@@ -81,13 +82,22 @@ export function FilterBar() {
           onSubmit={handleSearchSubmit}
           className="relative"
         >
-          <Input
-            placeholder="Search statements..."
-            value={searchInput}
-            onChange={handleSearchChange}
-            className="pl-9"
-          />
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+          <div className="flex items-center gap-2">
+            <div className="md:hidden flex items-center">
+              <SidebarTrigger>
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle Sidebar</span>
+              </SidebarTrigger>
+            </div>
+
+            <Input
+              placeholder="Search statements..."
+              value={searchInput}
+              onChange={handleSearchChange}
+              className="pl-9"
+            />
+          </div>
+          <div className="absolute inset-y-0 md:left-0 left-9 flex items-center pl-3 pointer-events-none">
             <Search className="h-4 w-4 text-gray-400" />
           </div>
 

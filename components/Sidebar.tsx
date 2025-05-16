@@ -13,6 +13,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -32,14 +33,11 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
-import { useEffect } from "react";
 
 export default function Sidebar() {
-  const { open, setOpen } = useSidebar();
+  const { open, isMobile } = useSidebar();
   const {
-    isSidebarOpen,
     parseResults,
-    toggleSidebar,
     generateSQL,
     resetStore,
     resetSqlPatterns,
@@ -49,13 +47,7 @@ export default function Sidebar() {
     parsedLines,
     unparsedSQL,
   } = useStore();
-
-  // Sync the sidebar state with the store
-  useEffect(() => {
-    if (isSidebarOpen !== open) {
-      toggleSidebar();
-    }
-  }, [open, isSidebarOpen, toggleSidebar]);
+  const isExpanded = isMobile || open;
 
   // Calculate progress percentage
   const progress =
@@ -108,34 +100,30 @@ export default function Sidebar() {
     resetSqlPatterns();
   };
 
-  const handleToggleSidebar = () => {
-    setOpen(!open);
-    toggleSidebar();
-  };
-
   const handleOpenSQLEditor = () => {
     setEditorDialogOpen(true);
   };
 
   return (
     <ShadcnSidebar collapsible="icon">
-      <SidebarContent className="h-full bg-gray-100 dark:bg-gray-900 border-r dark:border-gray-800 overflow-x-hidden gap-0 ">
+      <SidebarContent className="h-full bg-gray-100 dark:bg-gray-900 border-r dark:border-gray-800 overflow-x-hidden gap-0">
         <SidebarHeader className="p-4">
           <div
             className={cn(
               "flex items-center",
-              isSidebarOpen ? "justify-between" : "justify-center"
+              isExpanded ? "justify-between" : "justify-center"
             )}
           >
-            {open && <h2 className="font-bold text-lg">SQL Squasher</h2>}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleToggleSidebar}
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle Sidebar</span>
-            </Button>
+            {isExpanded && <h2 className="font-bold text-lg">SQL Squasher</h2>}
+            <SidebarTrigger>
+              <Button
+                variant="ghost"
+                size="icon"
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle Sidebar</span>
+              </Button>
+            </SidebarTrigger>
           </div>
         </SidebarHeader>
 
@@ -186,13 +174,13 @@ export default function Sidebar() {
 
         <SidebarGroup className="p-4">
           <SidebarGroupLabel>Parsing Progress</SidebarGroupLabel>
-          <SidebarGroupContent className={cn(!isSidebarOpen && "h-32")}>
-            <div className={cn(isSidebarOpen ? "" : " rotate-90")}>
+          <SidebarGroupContent className={cn(!isExpanded && "h-32")}>
+            <div className={cn(isExpanded ? "" : " rotate-90")}>
               <Progress
                 value={progress}
-                className={cn("h-2", isSidebarOpen ? "w-full" : "w-32")}
+                className={cn("h-2", isExpanded ? "w-full" : "w-32")}
               />
-              {open && (
+              {isExpanded && (
                 <p className="text-xs text-gray-500 mt-1">
                   {progress}% Complete ({parsedLines}/{totalLines} lines)
                 </p>
@@ -201,18 +189,20 @@ export default function Sidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className={cn(isSidebarOpen ? "p-4" : "p-1.5")}>
+        <SidebarGroup className={cn(isExpanded ? "p-4" : "p-1.5")}>
           <SidebarGroupLabel>SQL Downloads</SidebarGroupLabel>
 
           <div className="flex flex-row gap-2 mb-2">
-            <Button
-              disabled={progress < 100}
-              onClick={handleDownloadParsedSQL}
-              className="flex items-center gap-2 flex-grow cursor-pointer"
-            >
-              <Download className="h-5 w-5" />
-              {open && <span>Parsed SQL</span>}
-            </Button>
+            {isExpanded && (
+              <Button
+                disabled={progress < 100}
+                onClick={handleDownloadParsedSQL}
+                className="flex items-center gap-2 flex-grow cursor-pointer"
+              >
+                <Download className="h-5 w-5" />
+                <span>Parsed SQL</span>
+              </Button>
+            )}
             <Button
               disabled={progress < 100}
               onClick={handleCopyParsedSQL}
@@ -226,15 +216,17 @@ export default function Sidebar() {
           </div>
 
           <div className="flex flex-row gap-2">
-            <Button
-              disabled={!unparsedSQL}
-              onClick={handleDownloadUnparsedSQL}
-              className="flex items-center gap-2 flex-grow cursor-pointer hover:bg-gray-200"
-              variant="secondary"
-            >
-              <Download className="h-5 w-5" />
-              {open && <span>Unparsed SQL</span>}
-            </Button>
+            {isExpanded && (
+              <Button
+                disabled={!unparsedSQL}
+                onClick={handleDownloadUnparsedSQL}
+                className="flex items-center gap-2 flex-grow cursor-pointer hover:bg-gray-200"
+                variant="secondary"
+              >
+                <Download className="h-5 w-5" />
+                <span>Unparsed SQL</span>
+              </Button>
+            )}
             <Button
               disabled={!unparsedSQL}
               onClick={handleCopyUnparsedSQL}
@@ -248,7 +240,7 @@ export default function Sidebar() {
           </div>
         </SidebarGroup>
 
-        {open && (
+        {isExpanded && (
           <SidebarGroup className="p-4 flex-grow relative">
             <SidebarGroupLabel>Uploaded Files</SidebarGroupLabel>
             <SidebarGroupContent>

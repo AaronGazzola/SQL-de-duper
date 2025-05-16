@@ -12,7 +12,6 @@ import {
 import { create } from "zustand";
 
 interface StoreState {
-  isSidebarOpen: boolean;
   isUploadDialogOpen: boolean;
   isEditorDialogOpen: boolean;
   rawEditorSQL: string;
@@ -29,7 +28,6 @@ interface StoreState {
 
   filters: Filter;
 
-  toggleSidebar: () => void;
   setUploadDialogOpen: (isOpen: boolean) => void;
   setEditorDialogOpen: (isOpen: boolean) => void;
   setRawEditorSQL: (sql: string) => void;
@@ -75,7 +73,6 @@ const loadStoredPatterns = (): Record<string, SQLPattern[]> => {
 
 export const useStore = create<StoreState>((set, get) => ({
   currentView: "upload",
-  isSidebarOpen: true,
   isUploadDialogOpen: false,
   isEditorDialogOpen: false,
   rawEditorSQL: "",
@@ -96,9 +93,6 @@ export const useStore = create<StoreState>((set, get) => ({
     searchTerm: "",
     showUnparsed: false,
   },
-
-  toggleSidebar: () =>
-    set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 
   setUploadDialogOpen: (isOpen) => set({ isUploadDialogOpen: isOpen }),
 

@@ -36,7 +36,7 @@ export function StatementAccordion() {
   }, [filteredStatements, filters, findStatementVersions]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto relative">
+    <div className="w-full max-w-2xl mx-auto relative md:pt-3">
       <FilterBar />
       <Accordion
         type="single"

@@ -24,7 +24,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="container py-8">
+    <div className="container">
       <EditorDialog />
 
       {parseResults.length > 0 ? <StatementAccordion /> : <FileUpload />}
