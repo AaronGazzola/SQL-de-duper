@@ -15,12 +15,6 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { formatTimestamp, getDisplayName } from "@/lib/utils";
 import { Statement } from "@/types/app.types";
 import { useState } from "react";
@@ -32,94 +26,75 @@ export function StatementItem({
   statement: Statement;
   versions: Statement[];
 }) {
-  const [currentVersionIndex, setCurrentVersionIndex] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const siblingCount = 1; // Controls number of pages shown before truncation
+
   // We use the versions array passed as a prop instead of recalculating
   const sortedVersions = versions.sort((a, b) => b.timestamp - a.timestamp); // Ensure newest first
-  const currentStatement = sortedVersions[currentVersionIndex] || statement;
   const totalVersions = sortedVersions.length;
+  const currentVersionIndex = currentPage - 1; // Convert page to 0-based index
+  const currentStatement = sortedVersions[currentVersionIndex] || statement;
 
-  // Handle pagination
-  const handlePreviousVersion = () => {
-    setCurrentVersionIndex((prev) => (prev > 0 ? prev - 1 : prev));
+  // Handle page change
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
   };
 
-  const handleNextVersion = () => {
-    setCurrentVersionIndex((prev) =>
-      prev < totalVersions - 1 ? prev + 1 : prev
-    );
-  };
-
-  const handleVersionSelect = (index: number) => {
-    if (index >= 0 && index < totalVersions) {
-      setCurrentVersionIndex(index);
+  // Generate page numbers with configurable truncation
+  const generatePageNumbers = () => {
+    // If few enough pages, show all of them
+    if (totalVersions <= 3 + siblingCount * 2) {
+      return Array.from({ length: totalVersions }, (_, i) => i + 1);
     }
-  };
 
-  // Determine which pagination links to show
-  const getPaginationItems = () => {
-    const items = [];
-
-    // Always show first page
-    items.push(
-      <PaginationItem key="first">
-        <PaginationLink
-          isActive={currentVersionIndex === 0}
-          onClick={() => handleVersionSelect(0)}
-        >
-          1
-        </PaginationLink>
-      </PaginationItem>
+    // Calculate range of pages to show around current page
+    const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
+    const rightSiblingIndex = Math.min(
+      currentPage + siblingCount,
+      totalVersions
     );
 
-    // If there are more than 3 pages and we're not at the beginning,
-    // add ellipsis after first page
-    if (totalVersions > 3 && currentVersionIndex > 1) {
-      items.push(
-        <PaginationItem key="ellipsis-start">
-          <PaginationEllipsis />
-        </PaginationItem>
-      );
+    // Determine whether to show ellipses
+    const showLeftEllipsis = leftSiblingIndex > 2;
+    const showRightEllipsis = rightSiblingIndex < totalVersions - 1;
+
+    const pageNumbers = [];
+
+    // Always show page 1
+    pageNumbers.push(1);
+
+    // Add left ellipsis if needed
+    if (showLeftEllipsis) {
+      pageNumbers.push("leftEllipsis");
+    } else if (leftSiblingIndex > 1) {
+      for (let i = 2; i < leftSiblingIndex; i++) {
+        pageNumbers.push(i);
+      }
     }
 
-    // Current page (if not first or last)
-    if (currentVersionIndex > 0 && currentVersionIndex < totalVersions - 1) {
-      items.push(
-        <PaginationItem key={`current-${currentVersionIndex}`}>
-          <PaginationLink
-            isActive={true}
-            onClick={() => {}}
-          >
-            {currentVersionIndex + 1}
-          </PaginationLink>
-        </PaginationItem>
-      );
+    // Add pages around current page
+    for (let i = leftSiblingIndex; i <= rightSiblingIndex; i++) {
+      if (i !== 1 && i !== totalVersions) {
+        // Skip if already included
+        pageNumbers.push(i);
+      }
     }
 
-    // If there are more than 3 pages and we're not at the end,
-    // add ellipsis before last page
-    if (totalVersions > 3 && currentVersionIndex < totalVersions - 2) {
-      items.push(
-        <PaginationItem key="ellipsis-end">
-          <PaginationEllipsis />
-        </PaginationItem>
-      );
+    // Add right ellipsis if needed
+    if (showRightEllipsis) {
+      pageNumbers.push("rightEllipsis");
+    } else if (rightSiblingIndex < totalVersions) {
+      for (let i = rightSiblingIndex + 1; i < totalVersions; i++) {
+        pageNumbers.push(i);
+      }
     }
 
-    // Always show last page if there's more than one page
+    // Always show last page
     if (totalVersions > 1) {
-      items.push(
-        <PaginationItem key="last">
-          <PaginationLink
-            isActive={currentVersionIndex === totalVersions - 1}
-            onClick={() => handleVersionSelect(totalVersions - 1)}
-          >
-            {totalVersions}
-          </PaginationLink>
-        </PaginationItem>
-      );
+      pageNumbers.push(totalVersions);
     }
 
-    return items;
+    return pageNumbers;
   };
 
   return (
@@ -147,18 +122,6 @@ export function StatementItem({
                 </Badge>
               )}
             </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-xs text-gray-500 truncate max-w-[300px]">
-                    {statement.fileName}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{statement.fileName}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </AccordionTrigger>
       </div>
@@ -169,24 +132,59 @@ export function StatementItem({
               <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious
-                    onClick={handlePreviousVersion}
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage > 1) handlePageChange(currentPage - 1);
+                    }}
+                    aria-disabled={currentPage === 1}
+                    tabIndex={currentPage === 1 ? -1 : undefined}
                     className={
-                      currentVersionIndex === 0
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
+                      currentPage === 1
+                        ? "pointer-events-none opacity-50"
+                        : undefined
                     }
                   />
                 </PaginationItem>
 
-                {getPaginationItems()}
+                {generatePageNumbers().map((page, index) => {
+                  if (page === "leftEllipsis" || page === "rightEllipsis") {
+                    return (
+                      <PaginationItem key={`ellipsis-${index}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+                  return (
+                    <PaginationItem key={`page-${page}`}>
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handlePageChange(Number(page));
+                        }}
+                        isActive={page === currentPage}
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                })}
 
                 <PaginationItem>
                   <PaginationNext
-                    onClick={handleNextVersion}
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage < totalVersions)
+                        handlePageChange(currentPage + 1);
+                    }}
+                    aria-disabled={currentPage === totalVersions}
+                    tabIndex={currentPage === totalVersions ? -1 : undefined}
                     className={
-                      currentVersionIndex === totalVersions - 1
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
+                      currentPage === totalVersions
+                        ? "pointer-events-none opacity-50"
+                        : undefined
                     }
                   />
                 </PaginationItem>
@@ -220,8 +218,8 @@ export function StatementItem({
               </div>
               {totalVersions > 1 && (
                 <div>
-                  <span className="font-semibold">Version:</span>{" "}
-                  {currentVersionIndex + 1} of {totalVersions}
+                  <span className="font-semibold">Version:</span> {currentPage}{" "}
+                  of {totalVersions}
                 </div>
               )}
             </div>
