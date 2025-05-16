@@ -26,13 +26,15 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
 import {
   ClipboardCopy,
-  Code,
   Copy,
   Download,
+  FileCode,
+  Home,
   Menu,
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
+import Link from "next/link";
 
 export default function Sidebar() {
   const { open, isMobile } = useSidebar();
@@ -42,7 +44,6 @@ export default function Sidebar() {
     resetStore,
     resetSqlPatterns,
     setUploadDialogOpen,
-    setEditorDialogOpen,
     totalLines,
     parsedLines,
     unparsedSQL,
@@ -100,10 +101,6 @@ export default function Sidebar() {
     resetSqlPatterns();
   };
 
-  const handleOpenSQLEditor = () => {
-    setEditorDialogOpen(true);
-  };
-
   return (
     <ShadcnSidebar collapsible="icon">
       <SidebarContent className="h-full bg-gray-100 dark:bg-gray-900 border-r dark:border-gray-800 overflow-x-hidden gap-0">
@@ -131,22 +128,35 @@ export default function Sidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={handleOpenSQLEditor}
-                  tooltip="SQL Editor"
-                  className="cursor-pointer"
+                <Link
+                  href="/"
+                  className="w-full"
                 >
-                  <Code className="h-5 w-5" />
-                  <span>SQL Editor</span>
-                </SidebarMenuButton>
+                  <SidebarMenuButton
+                    tooltip="Home"
+                    className="cursor-pointer w-full"
+                  >
+                    <Home className="h-5 w-5" />
+                    <span>Home</span>
+                  </SidebarMenuButton>
+                </Link>
               </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
+              <SidebarMenuItem>
+                <Link
+                  href="/regex"
+                  className="w-full"
+                >
+                  <SidebarMenuButton
+                    tooltip="Regex"
+                    className="cursor-pointer w-full"
+                  >
+                    <FileCode className="h-5 w-5" />
+                    <span>Regex</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleReset}

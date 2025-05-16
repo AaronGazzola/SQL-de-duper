@@ -4,6 +4,7 @@ import { createId } from "@paralleldrive/cuid2";
 
 export class SQLParser {
   private patterns: Record<string, SQLPattern[]> = {};
+  private usedPatterns: Record<string, Set<string>> = {};
 
   constructor() {}
 
@@ -11,8 +12,13 @@ export class SQLParser {
     fileContent: string,
     filename: string,
     customPatterns: Record<string, SQLPattern[]>
-  ): { parsedFile: ParsedFile; unparsedSQL: string } {
+  ): {
+    parsedFile: ParsedFile;
+    unparsedSQL: string;
+    usedPatterns: Record<string, string[]>;
+  } {
     this.patterns = customPatterns;
+    this.usedPatterns = {};
 
     const allLines = fileContent.split("\n").filter((line) => line.trim());
     const totalLines = allLines.length;
@@ -43,7 +49,11 @@ export class SQLParser {
         parsed: 0,
         percentage: 0,
       };
-      return { parsedFile, unparsedSQL };
+      return {
+        parsedFile,
+        unparsedSQL,
+        usedPatterns: this.getUsedPatternsAsArray(),
+      };
     }
 
     let parsedLines = 0;
@@ -74,7 +84,11 @@ export class SQLParser {
       percentage,
     };
 
-    return { parsedFile, unparsedSQL };
+    return {
+      parsedFile,
+      unparsedSQL,
+      usedPatterns: this.getUsedPatternsAsArray(),
+    };
   }
 
   private parseTimestamp(timestamp: string): number {
@@ -127,6 +141,9 @@ export class SQLParser {
         /ALTER\s+TABLE\s+(?:public\.)?([a-zA-Z0-9_]+)\s+(?:ENABLE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY/i
       );
       if (rlsMatch && rlsMatch[1]) {
+        // Track this pattern as used
+        this.addUsedPattern("alterRLSPolicy", rlsMatch[0]);
+
         return {
           id: `${filename}-${index}`,
           fileName: filename,
@@ -149,6 +166,9 @@ export class SQLParser {
         if (!match) continue;
 
         if (match) {
+          // Track this pattern as used
+          this.addUsedPattern(type, pattern.toString());
+
           let name = "";
 
           if (match[1]) {
@@ -185,6 +205,12 @@ export class SQLParser {
       const objectType = dropMatch[1].toLowerCase();
       const objectName = dropMatch[2];
 
+      // Track this pattern as used
+      this.addUsedPattern(
+        `drop${objectType.charAt(0).toUpperCase() + objectType.slice(1)}`,
+        dropMatch[0]
+      );
+
       return {
         id: `${filename}-${index}`,
         fileName: filename,
@@ -201,6 +227,9 @@ export class SQLParser {
       /ALTER\s+(\w+)\s+(?:public\.)?([a-zA-Z0-9_]+)/i
     );
     if (alterMatch && alterMatch[1] && alterMatch[2]) {
+      // Track this pattern as used
+      this.addUsedPattern("alter", alterMatch[0]);
+
       return {
         id: `${filename}-${index}`,
         fileName: filename,
@@ -220,6 +249,9 @@ export class SQLParser {
       const action = genericMatch[1].toLowerCase();
       const objectName = genericMatch[2];
 
+      // Track this pattern as used
+      this.addUsedPattern(action, genericMatch[0]);
+
       return {
         id: `${filename}-${index}`,
         fileName: filename,
@@ -236,6 +268,9 @@ export class SQLParser {
       statement.trim().startsWith("BEGIN") ||
       statement.trim().startsWith("DO $$")
     ) {
+      // Track this pattern as used
+      this.addUsedPattern("plpgsql", statement.slice(0, 20));
+
       const name = `sql_block_${createId().substring(0, 8)}`;
       return {
         id: `${filename}-${index}`,
@@ -249,6 +284,23 @@ export class SQLParser {
     }
 
     return null;
+  }
+
+  private addUsedPattern(type: string, patternStr: string): void {
+    if (!this.usedPatterns[type]) {
+      this.usedPatterns[type] = new Set<string>();
+    }
+    this.usedPatterns[type].add(patternStr);
+  }
+
+  private getUsedPatternsAsArray(): Record<string, string[]> {
+    const result: Record<string, string[]> = {};
+
+    Object.entries(this.usedPatterns).forEach(([type, patterns]) => {
+      result[type] = Array.from(patterns);
+    });
+
+    return result;
   }
 
   private splitIntoStatements(content: string): string[] {

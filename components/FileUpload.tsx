@@ -2,7 +2,7 @@
 "use client";
 import FileDropZone from "@/components/FileDropZone";
 import FileList from "@/components/FileList";
-import { useSQLParser } from "@/hooks/useSQLParser";
+import useSQLParser from "@/hooks/useSQLParser";
 import { File as AppFile } from "@/types/app.types";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";

@@ -15,6 +15,8 @@ export function useSQLParser() {
     removePattern,
     resetSqlPatterns,
     unparsedSQL,
+    patternUsageStats,
+    updatePatternUsage,
   } = useStore();
 
   // Get all patterns for a specific type
@@ -52,6 +54,16 @@ export function useSQLParser() {
   const resetPatterns = useCallback(() => {
     resetSqlPatterns();
   }, [resetSqlPatterns]);
+
+  // Check if a pattern has been used for parsing
+  const isPatternUsed = useCallback(
+    (type: string, pattern: SQLPattern): boolean => {
+      if (!patternUsageStats[type]) return false;
+
+      return !!patternUsageStats[type][pattern.regex.toString()];
+    },
+    [patternUsageStats]
+  );
 
   // Calculate overall progress for file uploads
   const overallProgress = useMemo(() => {
@@ -117,6 +129,8 @@ export function useSQLParser() {
     resetPatterns,
     patterns: sqlPatterns,
     unparsedSQL,
+    isPatternUsed,
+    updatePatternUsage,
   };
 }
 

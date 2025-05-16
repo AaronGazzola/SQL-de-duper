@@ -25,6 +25,7 @@ interface StoreState {
 
   sqlPatterns: Record<string, SQLPattern[]>;
   initialSqlPatterns: Record<string, SQLPattern[]>;
+  patternUsageStats: Record<string, Record<string, boolean>>;
 
   filters: Filter;
 
@@ -44,6 +45,11 @@ interface StoreState {
   resetSqlPatterns: () => void;
   setSqlPattern: (key: string, pattern: RegExp, description?: string) => void;
   removePattern: (key: string, index: number) => void;
+  updatePatternUsage: (
+    type: string,
+    patternStr: string,
+    isUsed: boolean
+  ) => void;
 }
 
 const loadStoredData = (): ParsedFile[] => {
@@ -58,16 +64,16 @@ const loadStoredData = (): ParsedFile[] => {
   }
 };
 
-// Load stored patterns if they exist, otherwise use defaults
-const loadStoredPatterns = (): Record<string, SQLPattern[]> => {
-  if (typeof window === "undefined") return { ...sqlPatterns };
+// Load stored pattern usage if it exists
+const loadPatternUsage = (): Record<string, Record<string, boolean>> => {
+  if (typeof window === "undefined") return {};
 
   try {
-    const storedPatterns = localStorage.getItem("sqlPatterns");
-    return storedPatterns ? JSON.parse(storedPatterns) : { ...sqlPatterns };
+    const storedUsage = localStorage.getItem("patternUsage");
+    return storedUsage ? JSON.parse(storedUsage) : {};
   } catch (error) {
-    console.error("Error loading stored patterns:", error);
-    return { ...sqlPatterns };
+    console.error("Error loading pattern usage:", error);
+    return {};
   }
 };
 
@@ -84,8 +90,9 @@ export const useStore = create<StoreState>((set, get) => ({
   totalLines: 0,
   parsedLines: 0,
 
-  sqlPatterns: loadStoredPatterns(),
+  sqlPatterns,
   initialSqlPatterns: { ...sqlPatterns },
+  patternUsageStats: loadPatternUsage(),
 
   filters: {
     types: [],
@@ -150,11 +157,18 @@ export const useStore = create<StoreState>((set, get) => ({
 
           const patterns = get().sqlPatterns;
 
-          const { parsedFile, unparsedSQL } = sqlParser.parse(
+          const { parsedFile, unparsedSQL, usedPatterns } = sqlParser.parse(
             fileContent,
             file.name,
             patterns
           );
+
+          // Update pattern usage stats
+          Object.entries(usedPatterns).forEach(([type, patternStrings]) => {
+            patternStrings.forEach((patternStr) => {
+              get().updatePatternUsage(type, patternStr, true);
+            });
+          });
 
           set((state) => ({
             unparsedSQL: state.unparsedSQL + unparsedSQL,
@@ -408,6 +422,25 @@ export const useStore = create<StoreState>((set, get) => ({
     return generatedSQL;
   },
 
+  updatePatternUsage: (type, patternStr, isUsed) =>
+    set((state) => {
+      const updatedUsage = { ...state.patternUsageStats };
+
+      if (!updatedUsage[type]) {
+        updatedUsage[type] = {};
+      }
+
+      updatedUsage[type][patternStr] = isUsed;
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("patternUsage", JSON.stringify(updatedUsage));
+      }
+
+      return {
+        patternUsageStats: updatedUsage,
+      };
+    }),
+
   setSqlPattern: (key, pattern, description) =>
     set((state) => {
       // Get the current patterns for this key
@@ -504,10 +537,12 @@ export const useStore = create<StoreState>((set, get) => ({
       },
       rawEditorSQL: "",
       isEditorDialogOpen: false,
+      patternUsageStats: {},
     });
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("parseResults");
+      localStorage.removeItem("patternUsage");
     }
   },
 }));
