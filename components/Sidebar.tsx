@@ -33,7 +33,6 @@ import {
   Menu,
   Play,
   RefreshCw,
-  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -43,7 +42,6 @@ export default function Sidebar() {
     parseResults,
     generateSQL,
     resetStore,
-    resetSqlPatterns,
     setUploadDialogOpen,
     totalLines,
     parsedLines,
@@ -97,10 +95,6 @@ export default function Sidebar() {
   const handleReset = () => {
     resetStore();
     setUploadDialogOpen(true);
-  };
-
-  const handleResetPatterns = () => {
-    resetSqlPatterns();
   };
 
   const handleParseFiles = () => {
@@ -170,18 +164,7 @@ export default function Sidebar() {
                   className="cursor-pointer"
                 >
                   <RefreshCw className="h-5 w-5" />
-                  <span>Reset Data</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={handleResetPatterns}
-                  tooltip="Reset Patterns"
-                  className="cursor-pointer"
-                >
-                  <RotateCcw className="h-5 w-5" />
-                  <span>Reset Patterns</span>
+                  <span>Clear SQL</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
