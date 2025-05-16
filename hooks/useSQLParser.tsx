@@ -1,6 +1,6 @@
 // hooks/useSQLParser.ts
-
 import { useStore } from "@/Providers/store";
+import { SQLPattern } from "@/types/app.types";
 import { useCallback, useMemo } from "react";
 
 export function useSQLParser() {
@@ -12,23 +12,48 @@ export function useSQLParser() {
     removeFile,
     sqlPatterns,
     setSqlPattern,
+    removePattern,
+    resetSqlPatterns,
     unparsedSQL,
   } = useStore();
 
-  // Modified to handle the new array of patterns
-  const getPattern = useCallback(
-    (type: string) => sqlPatterns[type] || null,
+  // Get all patterns for a specific type
+  const getPatterns = useCallback(
+    (type: string): SQLPattern[] => sqlPatterns[type] || [],
     [sqlPatterns]
   );
 
-  // Modified to handle adding a new pattern to the array
-  const updatePattern = useCallback(
-    (type: string, pattern: RegExp) => {
-      setSqlPattern(type, pattern);
+  // Get a specific pattern by type and index
+  const getPattern = useCallback(
+    (type: string, index: number): SQLPattern | null => {
+      const patterns = sqlPatterns[type] || [];
+      return patterns[index] || null;
+    },
+    [sqlPatterns]
+  );
+
+  // Add a new pattern to the array
+  const addPattern = useCallback(
+    (type: string, pattern: RegExp, description?: string) => {
+      setSqlPattern(type, pattern, description);
     },
     [setSqlPattern]
   );
 
+  // Delete a pattern at the specified index
+  const deletePattern = useCallback(
+    (type: string, index: number) => {
+      removePattern(type, index);
+    },
+    [removePattern]
+  );
+
+  // Reset all patterns to defaults
+  const resetPatterns = useCallback(() => {
+    resetSqlPatterns();
+  }, [resetSqlPatterns]);
+
+  // Calculate overall progress for file uploads
   const overallProgress = useMemo(() => {
     if (Object.keys(uploadProgress).length === 0) return 0;
     let totalPercentage = 0;
@@ -40,6 +65,7 @@ export function useSQLParser() {
     return count > 0 ? Math.round(totalPercentage / count) : 0;
   }, [uploadProgress]);
 
+  // Calculate aggregated stats across all parsed files
   const aggregatedStats = useMemo(() => {
     return parseResults.reduce(
       (acc, file) => {
@@ -51,11 +77,13 @@ export function useSQLParser() {
     );
   }, [parseResults]);
 
+  // Calculate overall success rate of parsing
   const overallSuccessRate = useMemo(() => {
     const { total, parsed } = aggregatedStats;
     return total > 0 ? Math.round((parsed / total) * 100) : 0;
   }, [aggregatedStats]);
 
+  // Get all unique statement types from parsed results
   const statementTypes = useMemo(() => {
     const types = new Set<string>();
     parseResults.forEach((file) => {
@@ -65,6 +93,11 @@ export function useSQLParser() {
     });
     return Array.from(types);
   }, [parseResults]);
+
+  // Get all pattern types (categories)
+  const patternTypes = useMemo(() => {
+    return Object.keys(sqlPatterns);
+  }, [sqlPatterns]);
 
   return {
     parseResults,
@@ -76,8 +109,12 @@ export function useSQLParser() {
     aggregatedStats,
     overallSuccessRate,
     statementTypes,
+    patternTypes,
     getPattern,
-    updatePattern,
+    getPatterns,
+    addPattern,
+    deletePattern,
+    resetPatterns,
     patterns: sqlPatterns,
     unparsedSQL,
   };

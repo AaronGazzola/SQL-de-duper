@@ -12,6 +12,14 @@ export interface File extends Blob {
   text(): Promise<string>;
 }
 
+// Pattern object to store regex patterns with metadata
+export interface SQLPattern {
+  regex: RegExp;
+  isDefault: boolean;
+  description?: string;
+  createdAt: number;
+}
+
 // SQL Statement types
 export type StatementType =
   | "CREATE_TABLE"

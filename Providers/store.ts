@@ -5,6 +5,7 @@ import {
   File,
   Filter,
   ParsedFile,
+  SQLPattern,
   Statement,
   UploadProgress,
 } from "@/types/app.types";
@@ -23,8 +24,8 @@ interface StoreState {
   totalLines: number;
   parsedLines: number;
 
-  sqlPatterns: Record<string, RegExp[]>;
-  initialSqlPatterns: Record<string, RegExp[]>;
+  sqlPatterns: Record<string, SQLPattern[]>;
+  initialSqlPatterns: Record<string, SQLPattern[]>;
 
   filters: Filter;
 
@@ -43,7 +44,8 @@ interface StoreState {
   generateSQL: () => string;
   resetStore: () => void;
   resetSqlPatterns: () => void;
-  setSqlPattern: (key: string, pattern: RegExp) => void;
+  setSqlPattern: (key: string, pattern: RegExp, description?: string) => void;
+  removePattern: (key: string, index: number) => void;
 }
 
 const loadStoredData = (): ParsedFile[] => {
@@ -55,6 +57,19 @@ const loadStoredData = (): ParsedFile[] => {
   } catch (error) {
     console.error("Error loading stored data:", error);
     return [];
+  }
+};
+
+// Load stored patterns if they exist, otherwise use defaults
+const loadStoredPatterns = (): Record<string, SQLPattern[]> => {
+  if (typeof window === "undefined") return { ...sqlPatterns };
+
+  try {
+    const storedPatterns = localStorage.getItem("sqlPatterns");
+    return storedPatterns ? JSON.parse(storedPatterns) : { ...sqlPatterns };
+  } catch (error) {
+    console.error("Error loading stored patterns:", error);
+    return { ...sqlPatterns };
   }
 };
 
@@ -72,7 +87,7 @@ export const useStore = create<StoreState>((set, get) => ({
   totalLines: 0,
   parsedLines: 0,
 
-  sqlPatterns: { ...sqlPatterns },
+  sqlPatterns: loadStoredPatterns(),
   initialSqlPatterns: { ...sqlPatterns },
 
   filters: {
@@ -399,32 +414,85 @@ export const useStore = create<StoreState>((set, get) => ({
     return generatedSQL;
   },
 
-  setSqlPattern: (key, pattern) =>
+  setSqlPattern: (key, pattern, description) =>
     set((state) => {
       // Get the current patterns for this key
       const currentPatterns = [...(state.sqlPatterns[key] || [])];
 
-      // Add new pattern to the array if it doesn't already exist
+      // Create new pattern object
+      const newPattern: SQLPattern = {
+        regex: pattern,
+        isDefault: false,
+        description: description || `Custom pattern for ${key}`,
+        createdAt: Date.now(),
+      };
+
+      // Check if pattern already exists in the array
       const patternExists = currentPatterns.some(
-        (p) => p.toString() === pattern.toString()
+        (p) => p.regex.toString() === pattern.toString()
       );
 
       if (!patternExists) {
+        const updatedPatterns = {
+          ...state.sqlPatterns,
+          [key]: [...currentPatterns, newPattern],
+        };
+
+        // Store the updated patterns in localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem("sqlPatterns", JSON.stringify(updatedPatterns));
+        }
+
         return {
-          sqlPatterns: {
-            ...state.sqlPatterns,
-            [key]: [...currentPatterns, pattern],
-          },
+          sqlPatterns: updatedPatterns,
         };
       }
 
       return { sqlPatterns: state.sqlPatterns };
     }),
 
+  removePattern: (key, index) =>
+    set((state) => {
+      // Get the current patterns for this key
+      const currentPatterns = [...(state.sqlPatterns[key] || [])];
+
+      // Don't allow removing the last pattern
+      if (currentPatterns.length <= 1) {
+        return { sqlPatterns: state.sqlPatterns };
+      }
+
+      // Remove the pattern at the specified index
+      const updatedPatterns = currentPatterns.filter((_, i) => i !== index);
+
+      const newPatternState = {
+        ...state.sqlPatterns,
+        [key]: updatedPatterns,
+      };
+
+      // Store the updated patterns in localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("sqlPatterns", JSON.stringify(newPatternState));
+      }
+
+      return {
+        sqlPatterns: newPatternState,
+      };
+    }),
+
   resetSqlPatterns: () =>
-    set((state) => ({
-      sqlPatterns: { ...state.initialSqlPatterns },
-    })),
+    set((state) => {
+      // Store the reset patterns in localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          "sqlPatterns",
+          JSON.stringify(state.initialSqlPatterns)
+        );
+      }
+
+      return {
+        sqlPatterns: { ...state.initialSqlPatterns },
+      };
+    }),
 
   resetStore: () => {
     set({

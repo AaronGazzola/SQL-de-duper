@@ -1,16 +1,16 @@
 // services/SQLParser.ts
-import { ParsedFile, Statement } from "@/types/app.types";
+import { ParsedFile, SQLPattern, Statement } from "@/types/app.types";
 import { createId } from "@paralleldrive/cuid2";
 
 export class SQLParser {
-  private patterns: Record<string, RegExp[]> = {};
+  private patterns: Record<string, SQLPattern[]> = {};
 
   constructor() {}
 
   public parse(
     fileContent: string,
     filename: string,
-    customPatterns: Record<string, RegExp[]>
+    customPatterns: Record<string, SQLPattern[]>
   ): { parsedFile: ParsedFile; unparsedSQL: string } {
     this.patterns = customPatterns;
 
@@ -140,11 +140,13 @@ export class SQLParser {
     }
 
     // Check against each pattern type
-    for (const [type, patternArray] of Object.entries(this.patterns)) {
-      // Check each pattern for this type
-      for (const pattern of patternArray) {
+    for (const [type, patternList] of Object.entries(this.patterns)) {
+      // Check each pattern object for this type
+      for (const patternObj of patternList) {
+        const pattern = patternObj.regex;
         pattern.lastIndex = 0;
-        const match = pattern.exec(statement);
+        const match = pattern.exec?.(statement);
+        if (!match) continue;
 
         if (match) {
           let name = "";
