@@ -31,6 +31,7 @@ import {
   FileCode,
   Home,
   Menu,
+  Play,
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
@@ -47,6 +48,7 @@ export default function Sidebar() {
     totalLines,
     parsedLines,
     unparsedSQL,
+    parseFiles,
   } = useStore();
   const isExpanded = isMobile || open;
 
@@ -99,6 +101,10 @@ export default function Sidebar() {
 
   const handleResetPatterns = () => {
     resetSqlPatterns();
+  };
+
+  const handleParseFiles = () => {
+    parseFiles();
   };
 
   return (
@@ -176,6 +182,18 @@ export default function Sidebar() {
                 >
                   <RotateCcw className="h-5 w-5" />
                   <span>Reset Patterns</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleParseFiles}
+                  tooltip="Parse SQL"
+                  className="cursor-pointer"
+                  disabled={parseResults.length === 0}
+                >
+                  <Play className="h-5 w-5" />
+                  <span>Parse SQL</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

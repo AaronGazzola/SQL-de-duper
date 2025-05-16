@@ -1,8 +1,8 @@
-// store/store.ts
+// Providers/store.ts
 import sqlPatterns from "@/constants/SQLPatterns";
 import { SQLParser } from "@/services/SQLParser";
 import {
-  File,
+  File as FileType,
   Filter,
   ParsedFile,
   SQLPattern,
@@ -23,8 +23,9 @@ interface StoreState {
   totalLines: number;
   parsedLines: number;
 
-  sqlPatterns: Record<string, SQLPattern[]>;
-  initialSqlPatterns: Record<string, SQLPattern[]>;
+  // Changed from Record<string, SQLPattern[]> to SQLPattern[]
+  sqlPatterns: SQLPattern[];
+  initialSqlPatterns: SQLPattern[];
   patternUsageStats: Record<string, Record<string, boolean>>;
 
   filters: Filter;
@@ -32,9 +33,9 @@ interface StoreState {
   setUploadDialogOpen: (isOpen: boolean) => void;
   setEditorDialogOpen: (isOpen: boolean) => void;
   setRawEditorSQL: (sql: string) => void;
-  addFile: (file: File) => void;
+  addFile: (file: FileType) => void;
   removeFile: (index: number) => void;
-  parseFiles: (files: File[]) => Promise<void>;
+  parseFiles: (files?: FileType[]) => Promise<void>;
   updateParseResults: (results: ParsedFile[]) => void;
   setFilters: (filters: Filter) => void;
   addStatement: (statement: Statement) => void;
@@ -64,6 +65,36 @@ const loadStoredData = (): ParsedFile[] => {
   }
 };
 
+// Load stored patterns if they exist
+const loadStoredPatterns = (): SQLPattern[] => {
+  if (typeof window === "undefined") return sqlPatterns;
+
+  try {
+    const storedPatterns = localStorage.getItem("sqlPatterns");
+    if (storedPatterns) {
+      // Convert stored patterns back to SQLPattern objects with RegExp
+      const parsedPatterns = JSON.parse(storedPatterns);
+      return Array.isArray(parsedPatterns)
+        ? parsedPatterns.map((p) => {
+            const regexMatch = p.regex.match(/\/(.*)\/([gimuy]*)/);
+            if (regexMatch) {
+              const [, pattern, flags] = regexMatch;
+              return {
+                ...p,
+                regex: new RegExp(pattern, flags),
+              };
+            }
+            return p;
+          })
+        : sqlPatterns;
+    }
+    return sqlPatterns;
+  } catch (error) {
+    console.error("Error loading stored patterns:", error);
+    return sqlPatterns;
+  }
+};
+
 // Load stored pattern usage if it exists
 const loadPatternUsage = (): Record<string, Record<string, boolean>> => {
   if (typeof window === "undefined") return {};
@@ -78,7 +109,6 @@ const loadPatternUsage = (): Record<string, Record<string, boolean>> => {
 };
 
 export const useStore = create<StoreState>((set, get) => ({
-  currentView: "upload",
   isUploadDialogOpen: false,
   isEditorDialogOpen: false,
   rawEditorSQL: "",
@@ -90,8 +120,9 @@ export const useStore = create<StoreState>((set, get) => ({
   totalLines: 0,
   parsedLines: 0,
 
-  sqlPatterns,
-  initialSqlPatterns: { ...sqlPatterns },
+  // Changed from object of arrays to a single array
+  sqlPatterns: loadStoredPatterns(),
+  initialSqlPatterns: [...sqlPatterns],
   patternUsageStats: loadPatternUsage(),
 
   filters: {
@@ -109,7 +140,23 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setRawEditorSQL: (sql) => set({ rawEditorSQL: sql }),
 
-  addFile: () => {},
+  addFile: (file) => {
+    set((state) => ({
+      parseResults: [
+        ...state.parseResults,
+        {
+          filename: file.name,
+          originalContent: "",
+          statements: [],
+          stats: {
+            total: 0,
+            parsed: 0,
+            percentage: 0,
+          },
+        },
+      ],
+    }));
+  },
 
   removeFile: (index) =>
     set((state) => {
@@ -140,8 +187,34 @@ export const useStore = create<StoreState>((set, get) => ({
     const sqlParser = new SQLParser();
 
     try {
+      let filesToParse = files;
+      const currentResults = get().parseResults;
+
+      // If no files are provided, use the files from existing results
+      if (!filesToParse) {
+        // Create a new array of FileType objects from the current parse results
+        filesToParse = await Promise.all(
+          currentResults.map(async (result) => {
+            // Create a new FileType object with the existing data
+            const fileData = new Blob([result.originalContent], {
+              type: "text/plain",
+            });
+            const file = new File([fileData], result.filename, {
+              type: "text/plain",
+            });
+            return file;
+          })
+        );
+      }
+
+      // Ensure we have files to parse
+      if (!filesToParse || filesToParse.length === 0) {
+        set({ isProcessing: false });
+        return;
+      }
+
       const parseResults: ParsedFile[] = await Promise.all(
-        files.map(async (file) => {
+        filesToParse.map(async (file) => {
           set((state) => ({
             uploadProgress: {
               ...state.uploadProgress,
@@ -189,7 +262,25 @@ export const useStore = create<StoreState>((set, get) => ({
         })
       );
 
-      const updatedResults = [...get().parseResults, ...parseResults];
+      // If we're reparsing existing files, replace them instead of adding new ones
+      let updatedResults: ParsedFile[];
+      if (!files) {
+        // Reparsing - replace existing files with the same names
+        updatedResults = [...currentResults];
+        parseResults.forEach((newResult) => {
+          const existingIndex = updatedResults.findIndex(
+            (r) => r.filename === newResult.filename
+          );
+          if (existingIndex >= 0) {
+            updatedResults[existingIndex] = newResult;
+          } else {
+            updatedResults.push(newResult);
+          }
+        });
+      } else {
+        // New files - just append to existing results
+        updatedResults = [...currentResults, ...parseResults];
+      }
 
       const totalLines = updatedResults.reduce(
         (sum, file) => sum + file.stats.total,
@@ -443,31 +534,33 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setSqlPattern: (key, pattern, description) =>
     set((state) => {
-      // Get the current patterns for this key
-      const currentPatterns = [...(state.sqlPatterns[key] || [])];
-
       // Create new pattern object
       const newPattern: SQLPattern = {
         regex: pattern,
         isDefault: false,
-        description: description || `Custom pattern for ${key}`,
+        description: description || `Custom pattern`,
         createdAt: Date.now(),
       };
 
       // Check if pattern already exists in the array
-      const patternExists = currentPatterns.some(
+      const patternExists = state.sqlPatterns.some(
         (p) => p.regex.toString() === pattern.toString()
       );
 
       if (!patternExists) {
-        const updatedPatterns = {
-          ...state.sqlPatterns,
-          [key]: [...currentPatterns, newPattern],
-        };
+        const updatedPatterns = [...state.sqlPatterns, newPattern];
 
         // Store the updated patterns in localStorage
         if (typeof window !== "undefined") {
-          localStorage.setItem("sqlPatterns", JSON.stringify(updatedPatterns));
+          // Convert RegExp to string for storage
+          const serializablePatterns = updatedPatterns.map((p) => ({
+            ...p,
+            regex: p.regex.toString(),
+          }));
+          localStorage.setItem(
+            "sqlPatterns",
+            JSON.stringify(serializablePatterns)
+          );
         }
 
         return {
@@ -480,44 +573,52 @@ export const useStore = create<StoreState>((set, get) => ({
 
   removePattern: (key, index) =>
     set((state) => {
-      // Get the current patterns for this key
-      const currentPatterns = [...(state.sqlPatterns[key] || [])];
-
-      // Don't allow removing the last pattern
-      if (currentPatterns.length <= 1) {
+      // Make sure we have at least one pattern (can be a default pattern)
+      if (state.sqlPatterns.length <= 1) {
         return { sqlPatterns: state.sqlPatterns };
       }
 
       // Remove the pattern at the specified index
-      const updatedPatterns = currentPatterns.filter((_, i) => i !== index);
-
-      const newPatternState = {
-        ...state.sqlPatterns,
-        [key]: updatedPatterns,
-      };
+      const updatedPatterns = state.sqlPatterns.filter((_, i) => i !== index);
 
       // Store the updated patterns in localStorage
       if (typeof window !== "undefined") {
-        localStorage.setItem("sqlPatterns", JSON.stringify(newPatternState));
+        // Convert RegExp to string for storage
+        const serializablePatterns = updatedPatterns.map((p) => ({
+          ...p,
+          regex: p.regex.toString(),
+        }));
+        localStorage.setItem(
+          "sqlPatterns",
+          JSON.stringify(serializablePatterns)
+        );
       }
 
       return {
-        sqlPatterns: newPatternState,
+        sqlPatterns: updatedPatterns,
       };
     }),
 
   resetSqlPatterns: () =>
     set((state) => {
+      // Keep only default patterns
+      const defaultPatterns = state.sqlPatterns.filter((p) => p.isDefault);
+
       // Store the reset patterns in localStorage
       if (typeof window !== "undefined") {
+        // Convert RegExp to string for storage
+        const serializablePatterns = defaultPatterns.map((p) => ({
+          ...p,
+          regex: p.regex.toString(),
+        }));
         localStorage.setItem(
           "sqlPatterns",
-          JSON.stringify(state.initialSqlPatterns)
+          JSON.stringify(serializablePatterns)
         );
       }
 
       return {
-        sqlPatterns: { ...state.initialSqlPatterns },
+        sqlPatterns: defaultPatterns,
       };
     }),
 

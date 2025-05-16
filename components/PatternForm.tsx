@@ -2,16 +2,15 @@
 "use client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import useSQLParser from "@/hooks/useSQLParser";
+import useSQLPattern from "@/hooks/useSQLPattern";
 import { useStore } from "@/Providers/store";
-import { SQLPattern } from "@/types/app.types";
 import { ClipboardCopy, Download } from "lucide-react";
 import { useCallback, useState } from "react";
 
 export default function PatternForm() {
   const [regexInput, setRegexInput] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const { addPattern } = useSQLParser();
+  const { addPattern } = useSQLPattern();
   const { unparsedSQL, sqlPatterns } = useStore();
 
   const handleSubmit = useCallback(
@@ -25,46 +24,60 @@ export default function PatternForm() {
       }
 
       try {
-        // Try to parse the JSON input
-        const patternsObj = JSON.parse(regexInput.trim()) as Record<
-          string,
-          SQLPattern[]
-        >;
+        // Try to parse the JSON input as an array of pattern objects
+        const patternsArray = JSON.parse(regexInput.trim());
 
-        // Add each pattern to the store
-        Object.entries(patternsObj).forEach(([type, patterns]) => {
-          patterns.forEach((patternObj) => {
-            try {
-              // Extract regex pattern from the string representation
-              const patternStr = patternObj.regex.toString();
-              const regexMatch = patternStr.match(/\/(.*)\/([gimuy]*)/);
+        if (!Array.isArray(patternsArray)) {
+          setError("Input must be a JSON array of pattern objects");
+          return;
+        }
 
-              if (regexMatch) {
-                const [, pattern, flags] = regexMatch;
-                const regex = new RegExp(pattern, flags);
-
-                // Add the pattern to the store
-                addPattern(
-                  type,
-                  regex,
-                  patternObj.description || `Generated pattern for ${type}`
-                );
-              }
-            } catch (err) {
-              console.error(`Failed to add pattern for ${type}:`, err);
+        // Process each pattern in the array
+        patternsArray.forEach((patternObj) => {
+          try {
+            // Check if the pattern object has the required fields
+            if (!patternObj.regex) {
+              throw new Error("Pattern object must have a 'regex' field");
             }
-          });
+
+            // Extract regex pattern from the string representation
+            const patternStr = patternObj.regex.toString();
+            const regexMatch = patternStr.match(/\/(.*)\/([gimuy]*)/);
+
+            if (regexMatch) {
+              const [, pattern, flags] = regexMatch;
+              const regex = new RegExp(pattern, flags);
+
+              // Add the pattern to the store
+              addPattern(
+                patternObj.type || "",
+                regex,
+                patternObj.description ||
+                  `Pattern added on ${new Date().toLocaleDateString()}`
+              );
+            } else {
+              throw new Error(`Invalid regex format: ${patternStr}`);
+            }
+          } catch (err) {
+            console.error(`Failed to add pattern:`, err);
+            setError(
+              `Failed to add pattern: ${
+                err instanceof Error ? err.message : "Unknown error"
+              }`
+            );
+          }
         });
 
-        // Clear the input
-        setRegexInput("");
-
+        // Clear the input if all patterns were processed successfully
+        if (error === null) {
+          setRegexInput("");
+        }
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (err) {
         setError("Invalid JSON format. Please check your input.");
       }
     },
-    [regexInput, addPattern]
+    [regexInput, addPattern, error]
   );
 
   const handleDownloadUnparsedSQL = () => {
@@ -85,25 +98,14 @@ export default function PatternForm() {
   };
 
   const handleDownloadPatterns = () => {
-    // Create a stringified version of the patterns that can be parsed back into RegExp objects
-    const serializablePatterns: Record<
-      string,
-      {
-        regex: string;
-        isDefault: boolean;
-        description?: string;
-        createdAt: number;
-      }[]
-    > = {};
-
-    Object.entries(sqlPatterns).forEach(([type, patterns]) => {
-      serializablePatterns[type] = patterns.map((pattern) => ({
-        regex: pattern.regex.toString(),
-        isDefault: pattern.isDefault,
-        description: pattern.description,
-        createdAt: pattern.createdAt,
-      }));
-    });
+    // Create a serializable version of the patterns
+    const serializablePatterns = sqlPatterns.map((pattern) => ({
+      regex: pattern.regex.toString(),
+      isDefault: pattern.isDefault,
+      description: pattern.description,
+      type: "", // Add default empty type
+      createdAt: pattern.createdAt,
+    }));
 
     const patternsJson = JSON.stringify(serializablePatterns, null, 2);
     const blob = new Blob([patternsJson], { type: "application/json" });
@@ -116,25 +118,14 @@ export default function PatternForm() {
   };
 
   const handleCopyPatterns = () => {
-    // Create a stringified version of the patterns
-    const serializablePatterns: Record<
-      string,
-      {
-        regex: string;
-        isDefault: boolean;
-        description?: string;
-        createdAt: number;
-      }[]
-    > = {};
-
-    Object.entries(sqlPatterns).forEach(([type, patterns]) => {
-      serializablePatterns[type] = patterns.map((pattern) => ({
-        regex: pattern.regex.toString(),
-        isDefault: pattern.isDefault,
-        description: pattern.description,
-        createdAt: pattern.createdAt,
-      }));
-    });
+    // Create a serializable version of the patterns
+    const serializablePatterns = sqlPatterns.map((pattern) => ({
+      regex: pattern.regex.toString(),
+      isDefault: pattern.isDefault,
+      description: pattern.description,
+      type: "", // Add default empty type
+      createdAt: pattern.createdAt,
+    }));
 
     const patternsJson = JSON.stringify(serializablePatterns, null, 2);
     navigator.clipboard
@@ -151,23 +142,25 @@ export default function PatternForm() {
             htmlFor="regexInput"
             className="block text-sm font-medium mb-1"
           >
-            Patterns in JSON Format
+            Patterns in JSON Array Format
           </label>
           <textarea
             id="regexInput"
             className="w-full p-2 border border-gray-300 rounded-md h-40 font-mono"
             value={regexInput}
             onChange={(e) => setRegexInput(e.target.value)}
-            placeholder={`{
-  "function": [
-    {
-      "regex": "/CREATE\\\\s+TABLE\\\\s+(?:IF\\\\s+NOT\\\\s+EXISTS\\\\s+)?(?:public\\\\.)?([a-zA-Z0-9_]+)/gi",
-      "isDefault": false,
-      "description": "Create table pattern",
-      "createdAt": 1713278589000
-    }
-  ]
-}`}
+            placeholder={`[
+  {
+    "regex": "/CREATE\\\\s+TABLE\\\\s+(?:IF\\\\s+NOT\\\\s+EXISTS\\\\s+)?(?:public\\\\.)?([a-zA-Z0-9_]+)/gi",
+    "description": "Create table pattern",
+    "type": "function"
+  },
+  {
+    "regex": "/CREATE\\\\s+OR\\\\s+REPLACE\\\\s+FUNCTION\\\\s+([a-zA-Z0-9_]+)/gi",
+    "description": "Create function pattern",
+    "type": "function"
+  }
+]`}
           />
         </div>
         <div className="mb-6">
@@ -244,9 +237,9 @@ export default function PatternForm() {
       <Alert className="bg-amber-50 border-amber-200">
         <AlertDescription className="whitespace-pre-wrap">
           {"The attached SQL could not be parsed by the attached regex patterns. " +
-            'Generate a JSON object with arrays containing regex patterns, skip any that are included in the attached JSON. Your output regex patterns should match the statements in the unparsed SQL. The format should be:\n\n```json\n{\n  "type (eg. function/trigger/policy)": [\n    {\n      "regex": "/pattern/flags",\n      "isDefault": false,\n      "description": "Description of the pattern",\n      "createdAt": ' +
+            'Generate a JSON array containing regex patterns. Your output regex patterns should match the statements in the unparsed SQL. The format should be:\n\n```json\n[\n  {\n    "regex": "/pattern/flags",\n    "description": "Description of the pattern",\n    "type": "function or trigger or policy",\n    "createdAt": ' +
             Date.now() +
-            "\n    }\n  ]\n}\n```\n\n"}
+            "\n  }\n]\n```\n\n"}
         </AlertDescription>
       </Alert>
     </div>

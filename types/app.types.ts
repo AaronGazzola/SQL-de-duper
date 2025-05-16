@@ -39,7 +39,6 @@ export interface Statement {
   name: string;
   content: string;
   timestamp: number;
-  hash: string;
 }
 
 // Group of statements with the same name and type
