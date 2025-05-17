@@ -5,28 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn, getDisplayName } from "@/lib/utils";
-import { useStore } from "@/Providers/store";
-import { Filter } from "@/types/app.types";
+import { useStore } from "@/providers/store";
 import { Menu, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 export function FilterBar() {
-  const { filters, setFilters, parseResults } = useStore();
+  const { filters, setFilters, statementTypes } = useStore();
 
-  // Extract all statement types from the parsed results
-  const availableTypes = useMemo(() => {
-    const typeSet = new Set<string>();
-    parseResults.forEach((file) => {
-      file.statements.forEach((statement) => {
-        if (statement.type) {
-          typeSet.add(statement.type);
-        }
-      });
-    });
-    return Array.from(typeSet);
-  }, [parseResults]);
-
-  const handleFilterChange = (newFilters: Partial<Filter>) => {
+  const handleFilterChange = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    newFilters: Partial<Record<keyof typeof filters, any>>
+  ) => {
     setFilters({ ...filters, ...newFilters });
   };
 
@@ -112,7 +101,7 @@ export function FilterBar() {
           )}
         </form>
 
-        {availableTypes.length > 0 && (
+        {statementTypes.length > 0 && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium">Filter by Type</h3>
@@ -130,7 +119,7 @@ export function FilterBar() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {availableTypes.map((type) => (
+              {statementTypes.map((type) => (
                 <Badge
                   key={type}
                   variant={filters.types.includes(type) ? "default" : "outline"}

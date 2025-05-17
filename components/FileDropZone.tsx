@@ -1,15 +1,13 @@
 // components/FileDropZone.tsx
 "use client";
+import { useStore } from "@/providers/store";
 import { File } from "@/types/app.types";
-import { Database, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-interface FileDropZoneProps {
-  onFilesDrop: (files: File[]) => void;
-}
-
-export function FileDropZone({ onFilesDrop }: FileDropZoneProps) {
+export function FileDropZone() {
   const [isDragging, setIsDragging] = useState(false);
+  const { onFilesDrop } = useStore();
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -28,7 +26,6 @@ export function FileDropZone({ onFilesDrop }: FileDropZoneProps) {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-
       const files = Array.from(e.dataTransfer?.files || []) as File[];
       if (files.length > 0) {
         // Filter for SQL files
@@ -37,7 +34,6 @@ export function FileDropZone({ onFilesDrop }: FileDropZoneProps) {
             file.name.toLowerCase().endsWith(".sql") ||
             file.type === "application/sql"
         );
-
         if (sqlFiles.length > 0) {
           onFilesDrop(sqlFiles);
         }
@@ -51,7 +47,6 @@ export function FileDropZone({ onFilesDrop }: FileDropZoneProps) {
     window.addEventListener("dragover", handleDragOver);
     window.addEventListener("dragleave", handleDragLeave);
     window.addEventListener("drop", handleDrop);
-
     return () => {
       // Clean up
       window.removeEventListener("dragover", handleDragOver);
@@ -62,14 +57,6 @@ export function FileDropZone({ onFilesDrop }: FileDropZoneProps) {
 
   return (
     <>
-      {/* Centered drop zone placeholder */}
-      <div className="flex flex-col items-center justify-center p-12">
-        <Database className="h-12 w-12 text-gray-400 mb-4" />
-        <p className="text-lg font-medium text-gray-700">
-          Drop SQL migration files here
-        </p>
-      </div>
-
       {/* Full screen overlay when dragging */}
       {isDragging && (
         <div className="fixed inset-0 bg-blue-500/10 backdrop-blur-sm flex items-center justify-center z-50">

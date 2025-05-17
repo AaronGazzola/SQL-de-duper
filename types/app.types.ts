@@ -1,54 +1,21 @@
 // types/app.types.ts
-// File type extended from the standard File interface
-export interface File extends Blob {
-  readonly lastModified: number;
-  readonly name: string;
-  readonly webkitRelativePath: string;
-  readonly size: number;
-  readonly type: string;
-  arrayBuffer(): Promise<ArrayBuffer>;
-  slice(start?: number, end?: number, contentType?: string): Blob;
-  stream(): ReadableStream;
-  text(): Promise<string>;
-}
-
-// A parsed SQL statement
 export interface Statement {
   id: string;
-  fileName?: string;
   type: string;
   name: string;
   content: string;
+  fileName: string;
   timestamp: number;
+  hash: string;
+  parsed: boolean;
 }
 
-// Group of statements with the same name and type
 export interface StatementGroup {
-  name: string;
-  type: string;
-  statements: Statement[];
+  id: string;
+  content: Statement;
+  versions: Statement[];
 }
 
-// The result of parsing a SQL file
-export interface ParsedFile {
-  filename: string;
-  originalContent: string;
-  statements: Statement[];
-  stats: {
-    total: number;
-    parsed: number;
-    percentage: number;
-  };
-}
-
-// Selection in the SQL editor
-export interface Selection {
-  text: string;
-  startOffset: number;
-  endOffset: number;
-}
-
-// Filter criteria for statements
 export interface Filter {
   types: string[];
   latestOnly: boolean;
@@ -56,44 +23,27 @@ export interface Filter {
   showUnparsed: boolean;
 }
 
-// Progress tracking for file uploads
-export interface UploadProgress {
-  loaded: number;
-  total: number;
-  percentage: number;
+export interface ParseResult {
+  filename: string;
+  timestamp?: number;
+  stats: {
+    total: number;
+    parsed: number;
+  };
 }
 
-// Context for parsing SQL files
-export interface ParseContext {
-  parseResults: ParsedFile[];
-  isProcessing: boolean;
-  uploadProgress: Record<string, UploadProgress>;
-  addFile: (file: File) => void;
-  removeFile: (index: number) => void;
-  parseFiles: () => Promise<void>;
-  updateParseResults: (results: ParsedFile[]) => void;
+export interface File extends globalThis.File {
+  path?: string;
 }
 
-// Context for managing statements
-export interface StatementContext {
-  statements: Statement[];
-  filteredStatements: Statement[];
+export interface StoreState {
+  statements: StatementGroup[];
   filters: Filter;
+  statementTypes: string[];
+  parseResults: ParseResult[];
+  totalLines: number;
+  parsedLines: number;
+  onFilesDrop: (files: File[]) => void;
   setFilters: (filters: Filter) => void;
-  addStatement: (statement: Statement) => void;
-  updateStatement: (id: string, statement: Partial<Statement>) => void;
-  removeStatement: (id: string) => void;
-  generateSQL: () => string;
-}
-
-// UI state management context
-export interface UIContext {
-  currentView: "upload" | "report" | "manual" | "statements" | "export";
-  setCurrentView: (
-    view: "upload" | "report" | "manual" | "statements" | "export"
-  ) => void;
-  isSidebarOpen: boolean;
-  toggleSidebar: () => void;
-  isUploadDialogOpen: boolean;
-  setUploadDialogOpen: (isOpen: boolean) => void;
+  resetStore: () => void;
 }

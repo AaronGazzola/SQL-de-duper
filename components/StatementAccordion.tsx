@@ -3,64 +3,78 @@
 import FilterBar from "@/components/FilterBar";
 import { StatementItem } from "@/components/StatementItem";
 import { Accordion } from "@/components/ui/accordion";
-import { useStatements } from "@/hooks/useStatements";
-import { useStore } from "@/Providers/store";
-import { Statement } from "@/types/app.types";
+import { useStore } from "@/providers/store";
 import { useMemo } from "react";
 
 export function StatementAccordion() {
-  const { filters } = useStore();
-  const { filteredStatements, findStatementVersions } = useStatements();
+  const { filters, statements } = useStore();
 
-  // Create a grouped view of statements based on the filter settings
-  const groupedItems = useMemo(() => {
-    if (filters.showUnparsed) {
-      return []; // We don't show unparsed content in the accordion anymore
-    }
+  // Apply filters to statements
+  const filteredStatements = useMemo(() => {
+    return statements.filter((group) => {
+      // Filter by type
+      if (
+        filters.types.length > 0 &&
+        !filters.types.includes(group.content.type)
+      ) {
+        return false;
+      }
 
-    let displayStatements: Statement[] = [];
+      // Filter by search term
+      if (filters.searchTerm) {
+        const searchLower = filters.searchTerm.toLowerCase();
+        const contentMatches = group.content.content
+          .toLowerCase()
+          .includes(searchLower);
+        const nameMatches = group.content.name
+          .toLowerCase()
+          .includes(searchLower);
+        const typeMatches = group.content.type
+          .toLowerCase()
+          .includes(searchLower);
+        const fileMatches = group.content.fileName
+          .toLowerCase()
+          .includes(searchLower);
 
-    displayStatements = filteredStatements;
+        if (!(contentMatches || nameMatches || typeMatches || fileMatches)) {
+          return false;
+        }
+      }
 
-    // Map each statement to an object with all versions
-    return displayStatements.map((statement) => {
-      // Find all versions of this statement
-      const versions = findStatementVersions(statement);
+      // Filter out unparsed statements
+      if (!filters.showUnparsed && group.content.type === "UNPARSED") {
+        return false;
+      }
 
-      return {
-        id: statement.id,
-        statement: statement,
-        versions: versions,
-      };
+      return true;
     });
-  }, [filteredStatements, filters, findStatementVersions]);
+  }, [statements, filters]);
 
   return (
     <div className="w-full max-w-2xl mx-auto relative md:pt-3">
       <FilterBar />
-      <Accordion
-        type="single"
-        collapsible
-        className="w-full"
-      >
-        {groupedItems.length > 0 ? (
-          groupedItems.map((item) => (
+
+      {filteredStatements.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500">No statements match your filters</p>
+        </div>
+      ) : (
+        <Accordion
+          type="single"
+          collapsible
+          className="w-full"
+        >
+          {filteredStatements.map((statement) => (
             <StatementItem
-              key={item.id}
-              statement={item.statement}
-              versions={item.versions}
+              key={statement.id}
+              statement={statement.content}
+              versions={statement.versions}
             />
-          ))
-        ) : (
-          <div className="p-8 text-center border rounded-lg">
-            <p className="text-gray-500">
-              {filters.showUnparsed
-                ? "Unparsed content is now shown in a separate view."
-                : "No matching statements found."}
-            </p>
-          </div>
-        )}
-      </Accordion>
+          ))}
+        </Accordion>
+      )}
     </div>
   );
 }
+
+export default StatementAccordion;
