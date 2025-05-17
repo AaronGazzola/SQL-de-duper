@@ -27,7 +27,6 @@ export const useStore = create<{
   parseResults: [],
   totalLines: 0,
   parsedLines: 0,
-
   // Handle file drops
   onFilesDrop: async (files: File[]) => {
     const { parseResults: existingParseResults } = get();
@@ -36,9 +35,13 @@ export const useStore = create<{
     // Process each file
     for (const file of files) {
       try {
-        // Create parse result with just filename and file contents
+        // Read the file content as text
+        const fileContent = await file.text();
+
+        // Create parse result with filename, file contents, and timestamp
         const newParseResult: ParseResult = {
           filename: file.name,
+          content: fileContent, // Store the file content for later use
           timestamp: Date.now(),
           stats: {
             total: 0,
@@ -53,7 +56,7 @@ export const useStore = create<{
       }
     }
 
-    // Update state with just the files
+    // Update state with the processed files
     set({
       parseResults: newParseResults,
       statements: [],

@@ -27,7 +27,7 @@ import {
   TextNode,
 } from "lexical";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 const placeholder = "Enter SQL statement...";
 
@@ -77,9 +77,13 @@ const FileNavigation: React.FC = () => {
         // Clear existing content
         root.clear();
 
-        // Create a new paragraph with the file content
+        // Create a new paragraph with the file's actual content
         const paragraphNode = $createParagraphNode();
-        const textNode = $createTextNode(file.filename);
+
+        // Use the file content if available, otherwise fallback to filename
+        const fileContent = file.content || file.filename;
+
+        const textNode = $createTextNode(fileContent);
 
         paragraphNode.append(textNode);
         root.append(paragraphNode);
@@ -88,7 +92,7 @@ const FileNavigation: React.FC = () => {
   }, [currentFileIndex, parseResults, editor]);
 
   return (
-    <div className="flex items-center justify-between bg-gray-100 border-b px-4 py-2">
+    <div className="flex items-center justify-between rounded-lg border-b px-4 py-2">
       <button
         onClick={navigateToPreviousFile}
         disabled={currentFileIndex === 0 || fileCount === 0}
@@ -146,6 +150,35 @@ const SelectionToolbar: React.FC = () => {
     "CONSTRAINT",
   ];
 
+  const updateToolbar = useCallback(() => {
+    const selection = window.getSelection();
+
+    if (selection && !selection.isCollapsed) {
+      // Get the bounding rectangle of the selection
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      if (rect.width > 0 && rect.height > 0) {
+        setShow(true);
+
+        // Position the toolbar above the selection
+        if (toolbarRef.current) {
+          const toolbarHeight = toolbarRef.current.offsetHeight;
+
+          // Calculate position to center the toolbar above the selection
+          setPosition({
+            top: rect.top - toolbarHeight - 10, // 10px above the selection
+            left: rect.left + rect.width / 2,
+          });
+        }
+      } else {
+        setShow(false);
+      }
+    } else {
+      setShow(false);
+    }
+  }, []);
+
   useEffect(() => {
     return mergeRegister(
       editor.registerUpdateListener(({ editorState }) => {
@@ -162,31 +195,7 @@ const SelectionToolbar: React.FC = () => {
         1
       )
     );
-  }, [editor]);
-
-  const updateToolbar = () => {
-    const selection = window.getSelection();
-
-    if (selection && !selection.isCollapsed) {
-      setShow(true);
-
-      // Get the bounding rectangle of the selection
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      // Position the toolbar above the selection
-      if (toolbarRef.current) {
-        const toolbarHeight = toolbarRef.current.offsetHeight;
-
-        setPosition({
-          top: rect.top - toolbarHeight - 10, // 10px above the selection
-          left: rect.left + rect.width / 2 - toolbarRef.current.offsetWidth / 2, // Center horizontally
-        });
-      }
-    } else {
-      setShow(false);
-    }
-  };
+  }, [editor, updateToolbar]);
 
   if (!show) return null;
 

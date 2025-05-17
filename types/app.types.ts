@@ -25,6 +25,7 @@ export interface Filter {
 
 export interface ParseResult {
   filename: string;
+  content?: string; // Added content field to store the file contents
   timestamp?: number;
   stats: {
     total: number;
