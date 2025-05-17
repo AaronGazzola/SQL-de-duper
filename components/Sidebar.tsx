@@ -24,13 +24,24 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/providers/store";
-import { Menu, RefreshCw } from "lucide-react";
+import { Copy, Download, Menu, RefreshCw } from "lucide-react";
+import { useState } from "react";
 
 export default function Sidebar() {
   const { open, isMobile } = useSidebar();
-  const { parseResults, resetStore, totalLines, parsedLines } = useStore();
+  const {
+    parseResults,
+    resetStore,
+    totalLines,
+    parsedLines,
+    copyParsedSQL,
+    downloadParsedSQL,
+    selectedFile,
+    selectFile,
+  } = useStore();
 
   const isExpanded = isMobile || open;
+  const [copying, setCopying] = useState(false);
 
   // Calculate progress percentage
   const progress =
@@ -38,6 +49,12 @@ export default function Sidebar() {
 
   const handleReset = () => {
     resetStore();
+  };
+
+  const handleCopy = async () => {
+    setCopying(true);
+    await copyParsedSQL();
+    setTimeout(() => setCopying(false), 1000);
   };
 
   return (
@@ -98,36 +115,92 @@ export default function Sidebar() {
         </SidebarGroup>
 
         {isExpanded && (
-          <SidebarGroup className="p-4 flex-grow relative">
-            <SidebarGroupLabel>Uploaded Files</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <div className="space-y-1 overflow-y-auto absolute inset-3 top-12">
-                {parseResults.map((file, index) => (
-                  <TooltipProvider key={index}>
+          <>
+            <SidebarGroup className="p-4 flex-grow relative">
+              <SidebarGroupLabel>Uploaded Files</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <div className="space-y-1 overflow-y-auto absolute inset-3 top-12">
+                  {parseResults.map((file, index) => (
+                    <TooltipProvider key={index}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              "text-sm truncate p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded cursor-pointer",
+                              selectedFile === file.filename &&
+                                "bg-gray-200 dark:bg-gray-800"
+                            )}
+                            onClick={() => selectFile(file.filename)}
+                          >
+                            {file.filename} ({file.stats.parsed}/
+                            {file.stats.total} lines)
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            {file.filename} - {file.stats.parsed} of{" "}
+                            {file.stats.total} lines parsed
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
+                  {parseResults.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">
+                      No files uploaded
+                    </p>
+                  )}
+                </div>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-4">
+              <SidebarGroupLabel>Export</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <div className="flex space-x-2">
+                  <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="text-sm truncate p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded">
-                          {file.filename} ({file.stats.parsed}/
-                          {file.stats.total} lines)
-                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          disabled={progress < 100}
+                          onClick={handleCopy}
+                        >
+                          <Copy className="h-4 w-4 mr-1" />
+                          {copying ? "Copied!" : "Copy"}
+                        </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>
-                          {file.filename} - {file.stats.parsed} of{" "}
-                          {file.stats.total} lines parsed
-                        </p>
+                        <p>Copy parsed SQL to clipboard</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                ))}
-                {parseResults.length === 0 && (
-                  <p className="text-xs text-gray-400 italic">
-                    No files uploaded
-                  </p>
-                )}
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          disabled={progress < 100}
+                          onClick={downloadParsedSQL}
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Download parsed SQL</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
         )}
       </SidebarContent>
     </ShadcnSidebar>
