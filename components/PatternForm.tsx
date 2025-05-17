@@ -50,7 +50,6 @@ export default function PatternForm() {
 
               // Add the pattern to the store
               addPattern(
-                patternObj.type || "",
                 regex,
                 patternObj.description ||
                   `Pattern added on ${new Date().toLocaleDateString()}`
@@ -100,11 +99,9 @@ export default function PatternForm() {
   const handleDownloadPatterns = () => {
     // Create a serializable version of the patterns
     const serializablePatterns = sqlPatterns.map((pattern) => ({
-      regex: pattern.regex.toString(),
-      isDefault: pattern.isDefault,
-      description: pattern.description,
+      regex: pattern.toString(),
+      description: "SQL Pattern",
       type: "", // Add default empty type
-      createdAt: pattern.createdAt,
     }));
 
     const patternsJson = JSON.stringify(serializablePatterns, null, 2);
@@ -120,17 +117,34 @@ export default function PatternForm() {
   const handleCopyPatterns = () => {
     // Create a serializable version of the patterns
     const serializablePatterns = sqlPatterns.map((pattern) => ({
-      regex: pattern.regex.toString(),
-      isDefault: pattern.isDefault,
-      description: pattern.description,
+      regex: pattern.toString(),
+      description: "SQL Pattern",
       type: "", // Add default empty type
-      createdAt: pattern.createdAt,
     }));
 
     const patternsJson = JSON.stringify(serializablePatterns, null, 2);
     navigator.clipboard
       .writeText(patternsJson)
       .catch((err) => console.error("Failed to copy patterns:", err));
+  };
+
+  const promptText =
+    "Generate an array containing regex patterns. Add a unique, specific regex pattern to match the exact case for every single line of SQL in in the attached file (ignoring comments). Skip any patterns already listed in the regex array below. Do not include general regex like '/BEGIN;/i' - each regex patterns needs to identify exactly one statement in the SQL file. Your output regex array may be very long, but that's ok.";
+
+  const handleDownloadPrompt = () => {
+    const blob = new Blob([promptText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pattern-matching-prompt.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard
+      .writeText(promptText)
+      .catch((err) => console.error("Failed to copy prompt:", err));
   };
 
   return (
@@ -142,7 +156,7 @@ export default function PatternForm() {
             htmlFor="regexInput"
             className="block text-sm font-medium mb-1"
           >
-            Patterns in JSON Array Format
+            Paste the generated regex array here
           </label>
           <textarea
             id="regexInput"
@@ -223,6 +237,28 @@ export default function PatternForm() {
               </Button>
             </div>
           </div>
+
+          <div className="flex flex-col items-start gap-2">
+            <h4 className="text-sm">Prompt Text</h4>
+            <div className="flex flex-row gap-2 mb-2">
+              <Button
+                onClick={handleDownloadPrompt}
+                className="flex items-center gap-2 flex-grow cursor-pointer"
+                variant="secondary"
+              >
+                <Download className="h-5 w-5" />
+              </Button>
+              <Button
+                onClick={handleCopyPrompt}
+                variant="outline"
+                size="icon"
+                className="flex-shrink-0 cursor-pointer"
+              >
+                <ClipboardCopy className="h-5 w-5" />
+                <span className="sr-only">Copy to clipboard</span>
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -236,10 +272,7 @@ export default function PatternForm() {
 
       <Alert className="bg-amber-50 border-amber-200">
         <AlertDescription className="whitespace-pre-wrap">
-          {"The attached SQL could not be parsed by the attached regex patterns. " +
-            'Generate a JSON array containing regex patterns. Your output regex patterns should match the statements in the unparsed SQL. The format should be:\n\n```json\n[\n  {\n    "regex": "/pattern/flags",\n    "description": "Description of the pattern",\n    "type": "function or trigger or policy",\n    "createdAt": ' +
-            Date.now() +
-            "\n  }\n]\n```\n\n"}
+          {promptText}
         </AlertDescription>
       </Alert>
     </div>

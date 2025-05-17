@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import useSQLParser from "@/hooks/useSQLParser";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/Providers/store";
 import {
@@ -46,8 +47,9 @@ export default function Sidebar() {
     totalLines,
     parsedLines,
     unparsedSQL,
-    parseFiles,
   } = useStore();
+
+  const { parseFiles } = useSQLParser();
   const isExpanded = isMobile || open;
 
   // Calculate progress percentage

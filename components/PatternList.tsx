@@ -2,12 +2,11 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import useSQLPattern from "@/hooks/useSQLPattern";
-import { SQLPattern } from "@/types/app.types";
 import { Check, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 export default function PatternList() {
-  const { userPatterns, deletePattern, deleteAllPatterns, isPatternUsed } =
+  const { sqlPatterns, deletePattern, deleteAllPatterns, isPatternUsed } =
     useSQLPattern();
   const [expandedPatternIds, setExpandedPatternIds] = useState<
     Record<string, boolean>
@@ -20,17 +19,15 @@ export default function PatternList() {
     }));
   };
 
-  // Generate a unique ID for each pattern based on its regex and creation date
-  const getPatternId = (pattern: SQLPattern): string => {
-    return `${pattern.regex.toString()}-${pattern.createdAt}`;
+  // Generate a unique ID for each pattern based on its regex
+  const getPatternId = (pattern: RegExp): string => {
+    return pattern.toString();
   };
 
-  if (userPatterns.length === 0) {
+  if (sqlPatterns.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-6 h-full flex flex-col items-center justify-center">
-        <p className="text-gray-500 text-center">
-          No user-defined patterns available
-        </p>
+        <p className="text-gray-500 text-center">No patterns available</p>
         <p className="text-sm text-gray-400 text-center mt-2">
           Add patterns using the form
         </p>
@@ -41,7 +38,7 @@ export default function PatternList() {
   return (
     <div className="bg-white rounded-lg shadow p-6 h-full max-h-screen overflow-y-auto">
       <div className="flex items-center justify-between mb-4 sticky top-0 bg-white py-2 z-10">
-        <h2 className="text-lg font-semibold">User-Defined Patterns</h2>
+        <h2 className="text-lg font-semibold">SQL Statement Regex Patterns</h2>
         <Button
           variant="destructive"
           size="sm"
@@ -55,11 +52,11 @@ export default function PatternList() {
       </div>
 
       <div className="space-y-4">
-        {userPatterns.map((pattern, index) => {
+        {sqlPatterns.map((pattern, index) => {
           const patternId = getPatternId(pattern);
           const isExpanded = expandedPatternIds[patternId] || false;
           const isParsed = isPatternUsed(pattern);
-
+          if (!isParsed) return <Fragment key={patternId} />;
           return (
             <div
               key={patternId}
@@ -87,9 +84,9 @@ export default function PatternList() {
                         {isParsed && <Check size={14} />}
                       </div>
                       <p className="font-mono text-sm truncate">
-                        {pattern.regex.toString().length > 40
-                          ? `${pattern.regex.toString().substring(0, 40)}...`
-                          : pattern.regex.toString()}
+                        {pattern.toString().length > 40
+                          ? `${pattern.toString().substring(0, 40)}...`
+                          : pattern.toString()}
                       </p>
                     </div>
                   </div>
@@ -115,25 +112,7 @@ export default function PatternList() {
                       Pattern
                     </h4>
                     <p className="text-sm font-mono break-all mt-1">
-                      {pattern.regex.toString()}
-                    </p>
-                  </div>
-
-                  {pattern.description && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-600">
-                        Description
-                      </h4>
-                      <p className="text-sm mt-1">{pattern.description}</p>
-                    </div>
-                  )}
-
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-600">
-                      Created
-                    </h4>
-                    <p className="text-sm mt-1">
-                      {new Date(pattern.createdAt).toLocaleString()}
+                      {pattern.toString()}
                     </p>
                   </div>
 
@@ -142,19 +121,13 @@ export default function PatternList() {
                       Status
                     </h4>
                     <p className="text-sm mt-1 flex items-center">
-                      {isParsed ? (
-                        <span className="text-green-600 flex items-center">
-                          <Check
-                            size={14}
-                            className="mr-1"
-                          />{" "}
-                          Used in parsing
-                        </span>
-                      ) : (
-                        <span className="text-gray-500">
-                          Not used in parsing
-                        </span>
-                      )}
+                      <span className="text-green-600 flex items-center">
+                        <Check
+                          size={14}
+                          className="mr-1"
+                        />{" "}
+                        Used in parsing
+                      </span>
                     </p>
                   </div>
                 </div>

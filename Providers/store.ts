@@ -1,11 +1,9 @@
 // Providers/store.ts
-import sqlPatterns from "@/constants/SQLPatterns";
 import { SQLParser } from "@/services/SQLParser";
 import {
   File as FileType,
   Filter,
   ParsedFile,
-  SQLPattern,
   Statement,
   UploadProgress,
 } from "@/types/app.types";
@@ -23,9 +21,8 @@ interface StoreState {
   totalLines: number;
   parsedLines: number;
 
-  // Changed from Record<string, SQLPattern[]> to SQLPattern[]
-  sqlPatterns: SQLPattern[];
-  initialSqlPatterns: SQLPattern[];
+  sqlPatterns: RegExp[];
+  initialSqlPatterns: RegExp[];
   patternUsageStats: Record<string, Record<string, boolean>>;
 
   filters: Filter;
@@ -44,8 +41,8 @@ interface StoreState {
   generateSQL: () => string;
   resetStore: () => void;
   resetSqlPatterns: () => void;
-  setSqlPattern: (key: string, pattern: RegExp, description?: string) => void;
-  removePattern: (key: string, index: number) => void;
+  setSqlPattern: (pattern: RegExp, description?: string) => void;
+  removePattern: (index: number) => void;
   updatePatternUsage: (
     type: string,
     patternStr: string,
@@ -66,32 +63,32 @@ const loadStoredData = (): ParsedFile[] => {
 };
 
 // Load stored patterns if they exist
-const loadStoredPatterns = (): SQLPattern[] => {
-  if (typeof window === "undefined") return sqlPatterns;
+const loadStoredPatterns = (): RegExp[] => {
+  if (typeof window === "undefined") return [];
 
   try {
     const storedPatterns = localStorage.getItem("sqlPatterns");
     if (storedPatterns) {
-      // Convert stored patterns back to SQLPattern objects with RegExp
+      // Convert stored patterns back to RegExp objects
       const parsedPatterns = JSON.parse(storedPatterns);
       return Array.isArray(parsedPatterns)
         ? parsedPatterns.map((p) => {
-            const regexMatch = p.regex.match(/\/(.*)\/([gimuy]*)/);
-            if (regexMatch) {
-              const [, pattern, flags] = regexMatch;
-              return {
-                ...p,
-                regex: new RegExp(pattern, flags),
-              };
+            if (typeof p === "string") {
+              const regexMatch = p.match(/\/(.*)\/([gimuy]*)/);
+              if (regexMatch) {
+                const [, pattern, flags] = regexMatch;
+                return new RegExp(pattern, flags);
+              }
+              return new RegExp(p);
             }
             return p;
           })
-        : sqlPatterns;
+        : [];
     }
-    return sqlPatterns;
+    return [];
   } catch (error) {
     console.error("Error loading stored patterns:", error);
-    return sqlPatterns;
+    return [];
   }
 };
 
@@ -120,9 +117,8 @@ export const useStore = create<StoreState>((set, get) => ({
   totalLines: 0,
   parsedLines: 0,
 
-  // Changed from object of arrays to a single array
   sqlPatterns: loadStoredPatterns(),
-  initialSqlPatterns: [...sqlPatterns],
+  initialSqlPatterns: [],
   patternUsageStats: loadPatternUsage(),
 
   filters: {
@@ -162,6 +158,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set((state) => {
       const updatedResults = state.parseResults.filter((_, i) => i !== index);
 
+      // Recalculate total and parsed lines based on file stats
       const totalLines = updatedResults.reduce(
         (sum, file) => sum + file.stats.total,
         0
@@ -282,6 +279,7 @@ export const useStore = create<StoreState>((set, get) => ({
         updatedResults = [...currentResults, ...parseResults];
       }
 
+      // Calculate total and parsed lines from file stats
       const totalLines = updatedResults.reduce(
         (sum, file) => sum + file.stats.total,
         0
@@ -310,6 +308,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   updateParseResults: (results) => {
+    // Calculate total and parsed lines from file stats
     const totalLines = results.reduce((sum, file) => sum + file.stats.total, 0);
     const parsedLines = results.reduce(
       (sum, file) => sum + file.stats.parsed,
@@ -335,25 +334,33 @@ export const useStore = create<StoreState>((set, get) => ({
         if (file.filename === statement.fileName) {
           const statements = [...file.statements, statement];
 
-          const statementLines = statement.content
-            .split("\n")
-            .filter((line) => line.trim()).length;
+          // Calculate the number of lines in the statement
+          const statementLineCount = statement.content.split("\n").length;
+
+          // Calculate new stats
+          const updatedStats = {
+            ...file.stats,
+            parsed: file.stats.parsed + statementLineCount,
+          };
+
+          // Ensure parsed doesn't exceed total
+          updatedStats.parsed = Math.min(updatedStats.parsed, file.stats.total);
+
+          // Recalculate percentage
+          updatedStats.percentage = Math.round(
+            (updatedStats.parsed / file.stats.total) * 100
+          );
 
           return {
             ...file,
             statements,
-            stats: {
-              ...file.stats,
-              parsed: file.stats.parsed + statementLines,
-              percentage: Math.round(
-                ((file.stats.parsed + statementLines) / file.stats.total) * 100
-              ),
-            },
+            stats: updatedStats,
           };
         }
         return file;
       });
 
+      // Recalculate total and parsed lines
       const totalLines = updatedResults.reduce(
         (sum, file) => sum + file.stats.total,
         0
@@ -376,7 +383,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   updateStatement: (id, updatedStatement) =>
     set((state) => {
-      let lineCountDelta = 0;
+      let lineCountDifference = 0;
 
       const updatedResults = state.parseResults.map((file) => {
         const statements = file.statements.map((statement) => {
@@ -385,13 +392,9 @@ export const useStore = create<StoreState>((set, get) => ({
               updatedStatement.content &&
               updatedStatement.content !== statement.content
             ) {
-              const oldLines = statement.content
-                .split("\n")
-                .filter((line) => line.trim()).length;
-              const newLines = updatedStatement.content
-                .split("\n")
-                .filter((line) => line.trim()).length;
-              lineCountDelta = newLines - oldLines;
+              const oldLines = statement.content.split("\n").length;
+              const newLines = updatedStatement.content.split("\n").length;
+              lineCountDifference = newLines - oldLines;
             }
 
             return { ...statement, ...updatedStatement };
@@ -400,21 +403,25 @@ export const useStore = create<StoreState>((set, get) => ({
         });
 
         if (statements.some((s) => s.id === id)) {
+          // Update file stats
+          const updatedParsed = file.stats.parsed + lineCountDifference;
+          const parsed = Math.min(updatedParsed, file.stats.total); // Ensure parsed doesn't exceed total
+          const percentage = Math.round((parsed / file.stats.total) * 100);
+
           return {
             ...file,
             statements,
             stats: {
               ...file.stats,
-              parsed: file.stats.parsed + lineCountDelta,
-              percentage: Math.round(
-                ((file.stats.parsed + lineCountDelta) / file.stats.total) * 100
-              ),
+              parsed,
+              percentage,
             },
           };
         }
         return file;
       });
 
+      // Recalculate total and parsed lines
       const totalLines = updatedResults.reduce(
         (sum, file) => sum + file.stats.total,
         0
@@ -437,36 +444,31 @@ export const useStore = create<StoreState>((set, get) => ({
 
   removeStatement: (id) =>
     set((state) => {
-      let removedLineCount = 0;
-
       const updatedResults = state.parseResults.map((file) => {
         const statementToRemove = file.statements.find((s) => s.id === id);
 
         if (statementToRemove) {
-          removedLineCount = statementToRemove.content
-            .split("\n")
-            .filter((line) => line.trim()).length;
-        }
+          const lineCount = statementToRemove.content.split("\n").length;
+          const statements = file.statements.filter((s) => s.id !== id);
 
-        const statements = file.statements.filter((s) => s.id !== id);
+          // Calculate new stats
+          const parsed = Math.max(0, file.stats.parsed - lineCount);
+          const percentage = Math.round((parsed / file.stats.total) * 100);
 
-        if (file.statements.length !== statements.length) {
           return {
             ...file,
             statements,
             stats: {
               ...file.stats,
-              parsed: file.stats.parsed - removedLineCount,
-              percentage: Math.round(
-                ((file.stats.parsed - removedLineCount) / file.stats.total) *
-                  100
-              ),
+              parsed,
+              percentage,
             },
           };
         }
         return file;
       });
 
+      // Recalculate total and parsed lines
       const totalLines = updatedResults.reduce(
         (sum, file) => sum + file.stats.total,
         0
@@ -532,31 +534,20 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }),
 
-  setSqlPattern: (key, pattern, description) =>
+  setSqlPattern: (pattern) =>
     set((state) => {
-      // Create new pattern object
-      const newPattern: SQLPattern = {
-        regex: pattern,
-        isDefault: false,
-        description: description || `Custom pattern`,
-        createdAt: Date.now(),
-      };
-
       // Check if pattern already exists in the array
       const patternExists = state.sqlPatterns.some(
-        (p) => p.regex.toString() === pattern.toString()
+        (p) => p.toString() === pattern.toString()
       );
 
       if (!patternExists) {
-        const updatedPatterns = [...state.sqlPatterns, newPattern];
+        const updatedPatterns = [...state.sqlPatterns, pattern];
 
         // Store the updated patterns in localStorage
         if (typeof window !== "undefined") {
           // Convert RegExp to string for storage
-          const serializablePatterns = updatedPatterns.map((p) => ({
-            ...p,
-            regex: p.regex.toString(),
-          }));
+          const serializablePatterns = updatedPatterns.map((p) => p.toString());
           localStorage.setItem(
             "sqlPatterns",
             JSON.stringify(serializablePatterns)
@@ -571,9 +562,9 @@ export const useStore = create<StoreState>((set, get) => ({
       return { sqlPatterns: state.sqlPatterns };
     }),
 
-  removePattern: (key, index) =>
+  removePattern: (index) =>
     set((state) => {
-      // Make sure we have at least one pattern (can be a default pattern)
+      // Make sure we have at least one pattern
       if (state.sqlPatterns.length <= 1) {
         return { sqlPatterns: state.sqlPatterns };
       }
@@ -584,10 +575,7 @@ export const useStore = create<StoreState>((set, get) => ({
       // Store the updated patterns in localStorage
       if (typeof window !== "undefined") {
         // Convert RegExp to string for storage
-        const serializablePatterns = updatedPatterns.map((p) => ({
-          ...p,
-          regex: p.regex.toString(),
-        }));
+        const serializablePatterns = updatedPatterns.map((p) => p.toString());
         localStorage.setItem(
           "sqlPatterns",
           JSON.stringify(serializablePatterns)
@@ -600,25 +588,13 @@ export const useStore = create<StoreState>((set, get) => ({
     }),
 
   resetSqlPatterns: () =>
-    set((state) => {
-      // Keep only default patterns
-      const defaultPatterns = state.sqlPatterns.filter((p) => p.isDefault);
-
-      // Store the reset patterns in localStorage
+    set(() => {
       if (typeof window !== "undefined") {
-        // Convert RegExp to string for storage
-        const serializablePatterns = defaultPatterns.map((p) => ({
-          ...p,
-          regex: p.regex.toString(),
-        }));
-        localStorage.setItem(
-          "sqlPatterns",
-          JSON.stringify(serializablePatterns)
-        );
+        localStorage.removeItem("sqlPatterns");
       }
 
       return {
-        sqlPatterns: defaultPatterns,
+        sqlPatterns: [],
       };
     }),
 

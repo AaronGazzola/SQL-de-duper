@@ -1,66 +1,55 @@
 // hooks/useSQLPattern.ts
+"use client";
 import { useStore } from "@/Providers/store";
-import { SQLPattern } from "@/types/app.types";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 export default function useSQLPattern() {
   const {
     sqlPatterns,
+    patternUsageStats,
     setSqlPattern,
     removePattern,
     resetSqlPatterns,
-    parseResults,
+    updatePatternUsage,
   } = useStore();
 
-  // Get only user-added patterns (non-default patterns)
-  const userPatterns = useMemo(() => {
-    return sqlPatterns.filter((pattern) => !pattern.isDefault);
-  }, [sqlPatterns]);
-
-  // Add a new pattern to the store
   const addPattern = useCallback(
-    (type: string, regex: RegExp, description?: string) => {
-      setSqlPattern(type, regex, description);
+    (pattern: RegExp, description?: string) => {
+      setSqlPattern(pattern, description);
     },
     [setSqlPattern]
   );
 
-  // Delete a pattern from the store
   const deletePattern = useCallback(
-    (type: string, index: number) => {
-      removePattern(type, index);
+    (_: string, index: number) => {
+      removePattern(index);
     },
     [removePattern]
   );
 
-  // Delete all user-added patterns
   const deleteAllPatterns = useCallback(() => {
     resetSqlPatterns();
   }, [resetSqlPatterns]);
 
-  // Check if a pattern has been used to parse any statements
   const isPatternUsed = useCallback(
-    (pattern: SQLPattern): boolean => {
-      for (const file of parseResults) {
-        for (const statement of file.statements) {
-          pattern.regex.lastIndex = 0; // Reset regex state
-          if (pattern.regex.test(statement.content)) {
-            return true;
-          }
-        }
-      }
-
-      return false;
+    (pattern: RegExp): boolean => {
+      const patternStr = pattern.toString();
+      // Check if this pattern is used in any statement type
+      return Object.values(patternUsageStats).some((typeStats) => {
+        return Object.entries(typeStats).some(
+          ([storedPattern, isUsed]) => storedPattern === patternStr && isUsed
+        );
+      });
     },
-    [parseResults]
+    [patternUsageStats]
   );
 
   return {
-    patterns: sqlPatterns,
-    userPatterns,
+    sqlPatterns,
     addPattern,
     deletePattern,
     deleteAllPatterns,
     isPatternUsed,
+    updatePatternUsage,
   };
 }

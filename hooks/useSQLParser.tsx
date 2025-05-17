@@ -1,6 +1,5 @@
 // hooks/useSQLParser.ts
 "use client";
-
 import { useStore } from "@/Providers/store";
 import { File as FileType } from "@/types/app.types";
 import { useCallback } from "react";
@@ -31,15 +30,15 @@ export default function useSQLParser() {
   );
 
   const addPattern = useCallback(
-    (key: string, pattern: RegExp, description?: string) => {
-      setSqlPattern(key, pattern, description);
+    (pattern: RegExp, description?: string) => {
+      setSqlPattern(pattern, description);
     },
     [setSqlPattern]
   );
 
   const deletePattern = useCallback(
-    (key: string, index: number) => {
-      removePattern(key, index);
+    (index: number) => {
+      removePattern(index);
     },
     [removePattern]
   );
@@ -53,7 +52,6 @@ export default function useSQLParser() {
     totalLines,
     parsedLines,
     sqlPatterns,
-
     // Methods
     parseFiles,
     addFile,
