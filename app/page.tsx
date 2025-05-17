@@ -13,10 +13,10 @@ export default function HomePage() {
   const { parseResults } = useStore();
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen w-full">
       <FileDropZone />
-      <div className="flex-1 overflow-auto">
-        <div className="container py-6">
+      <div className="flex-1 overflow-auto w-full">
+        <div className="container py-6 w-full h-full">
           {!parseResults.length ? (
             <div className="text-center py-8 flex flex-col items-center gap-6">
               <h2 className="text-2xl font-bold ">Welcome to SQL Squasher</h2>
@@ -27,14 +27,17 @@ export default function HomePage() {
             <Tabs
               value={activeTab}
               onValueChange={setActiveTab}
-              className="w-full max-w-2xl mx-auto"
+              className="w-full max-w-4xl mx-auto flex flex-col items-center h-full"
             >
-              <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsList className="grid w-full grid-cols-2 mb-6 max-w-xl">
                 <TabsTrigger value="editor">SQL Editor</TabsTrigger>
                 <TabsTrigger value="statements">Statements</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="editor">
+              <TabsContent
+                value="editor"
+                className="w-full mx-auto relative h-full"
+              >
                 <Editor />
               </TabsContent>
 
