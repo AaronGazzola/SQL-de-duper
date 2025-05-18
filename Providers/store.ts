@@ -1,7 +1,13 @@
 // providers/store.ts
 "use client";
 
-import { File, FileData, Filter, StatementGroup } from "@/types/app.types";
+import {
+  File,
+  FileData,
+  Filter,
+  Statement,
+  StatementGroup,
+} from "@/types/app.types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -333,7 +339,7 @@ export const useStore = create<{
           }
 
           // Create statement object
-          const newStatement = {
+          const newStatement: Statement = {
             id: Math.random().toString(36).substring(2, 9),
             type: "SQL",
             name,
@@ -352,14 +358,41 @@ export const useStore = create<{
           let updatedStatements = [...statements];
 
           if (existingGroupIndex !== -1) {
-            // Add as a version to existing statement group
-            updatedStatements[existingGroupIndex].versions.push(newStatement);
+            // Get the existing group
+            const existingGroup = updatedStatements[existingGroupIndex];
+
+            // For the first version addition, move the current content to versions
+            // and then add the new statement as a version as well
+            let updatedVersions: Statement[] = [];
+
+            // If it's the first version being added (versions array is empty)
+            // We need to preserve the original content by adding it to the versions array
+            if (existingGroup.versions.length === 0) {
+              // Add the current content as the first version
+              updatedVersions = [{ ...existingGroup.content }];
+            } else {
+              // Copy existing versions
+              updatedVersions = [...existingGroup.versions];
+            }
+
+            // Add the new statement to versions
+            updatedVersions.push(newStatement);
+
+            // Update the group with the new statement as the main content
+            // and include all versions (including the previous content)
+            const updatedGroup: StatementGroup = {
+              ...existingGroup,
+              content: newStatement, // Set the newest statement as the main content
+              versions: updatedVersions,
+            };
+
+            updatedStatements[existingGroupIndex] = updatedGroup;
           } else {
             // Create a new statement group
-            const newStatementGroup = {
+            const newStatementGroup: StatementGroup = {
               id: Math.random().toString(36).substring(2, 9),
               content: newStatement,
-              versions: [],
+              versions: [], // Empty for the first statement
             };
             updatedStatements = [...statements, newStatementGroup];
           }
@@ -401,7 +434,8 @@ export const useStore = create<{
                 (file) => file.filename === fileName
               );
               if (originalFileIndex !== -1) {
-                state.files[originalFileIndex].isParsed = true;
+                const updatedFiles = [...state.files];
+                updatedFiles[originalFileIndex].isParsed = true;
               }
             }
 
@@ -414,7 +448,6 @@ export const useStore = create<{
             return {
               statements: updatedStatements,
               editorFiles: updatedEditorFiles,
-              files: [...state.files], // Include the updated original files
               parsedLines: totalParsedLines,
             };
           }
