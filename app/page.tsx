@@ -3,9 +3,11 @@
 import Editor from "@/components/Editor";
 import FileDropZone from "@/components/FileDropZone";
 import { StatementAccordion } from "@/components/StatementAccordion";
+import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStore } from "@/providers/store";
-import { Upload } from "lucide-react";
+import { Menu, Upload } from "lucide-react";
 import { useState } from "react";
 
 export default function HomePage() {
@@ -13,7 +15,16 @@ export default function HomePage() {
   const { files } = useStore();
 
   return (
-    <div className="flex h-screen w-full">
+    <div className="flex h-screen w-full relative">
+      <SidebarTrigger className="absolute top-4 left-4 z-10 md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+        >
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Toggle Sidebar</span>
+        </Button>
+      </SidebarTrigger>
       <FileDropZone />
       <div className="flex-1 overflow-auto w-full">
         <div className="container py-6 w-full h-full">
