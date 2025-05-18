@@ -1,316 +1,187 @@
 // components/StatementProvider.tsx
 "use client";
-import { StatementTextNode } from "@/components/StatementTextNode";
-import { APPLY_STATEMENT_COMMAND } from "@/hooks/editor.hooks";
-import { Statement } from "@/types/app.types";
+
+import {
+  $isStatementTextNode,
+  StatementTextNode,
+} from "@/components/StatementTextNode";
+import { useStore } from "@/providers/store";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { mergeRegister } from "@lexical/utils";
 import {
   $getSelection,
   $isRangeSelection,
-  COMMAND_PRIORITY_LOW,
-  RangeSelection,
+  COMMAND_PRIORITY_CRITICAL,
+  KEY_ENTER_COMMAND,
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
-// SQL statement types
 export const sqlStatementTypes = [
-  "FUNCTION",
-  "PROCEDURE",
-  "TRIGGER",
-  "VIEW",
-  "POLICY",
-  "RULE",
-  "TABLE",
-  "INDEX",
-  "CONSTRAINT",
+  "SELECT",
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "CREATE TABLE",
+  "ALTER TABLE",
+  "DROP TABLE",
+  "CREATE INDEX",
+  "CREATE VIEW",
+  "MERGE",
+  "TRUNCATE",
+  "BEGIN TRANSACTION",
+  "COMMIT",
+  "ROLLBACK",
+  "GRANT",
+  "REVOKE",
+  "OTHER",
 ];
 
-// Interface for storing selection data
-interface SelectionData {
-  key: string;
-  statement: Statement | null;
-}
-
-// Context interface
 interface StatementContextType {
   hasSelection: boolean;
-  selectedText: string;
-  selectionRect: DOMRect | null;
   statementType: string;
+  handleTypeChange: (value: string) => void;
   selectedStatementName: string | null;
-  setStatementType: (type: string) => void;
-  applyStatementToSelection: () => void;
-  handleTypeChange: (type: string) => void;
-  selectionMap: Map<string, SelectionData>;
+  setSelectedStatementName: (name: string | null) => void;
 }
 
-// Create context with default values
 const StatementContext = createContext<StatementContextType>({
   hasSelection: false,
-  selectedText: "",
-  selectionRect: null,
   statementType: "",
-  selectedStatementName: null,
-  setStatementType: () => {},
-  applyStatementToSelection: () => {},
   handleTypeChange: () => {},
-  selectionMap: new Map(),
+  selectedStatementName: null,
+  setSelectedStatementName: () => {},
 });
 
-// Create a unique key for a selection
-function createSelectionKey(selection: RangeSelection): string {
-  const anchorKey = selection.anchor.key;
-  const focusKey = selection.focus.key;
-  const anchorOffset = selection.anchor.offset;
-  const focusOffset = selection.focus.offset;
+export const useStatement = () => useContext(StatementContext);
 
-  return `${anchorKey}:${anchorOffset}-${focusKey}:${focusOffset}`;
-}
-
-// Extract statement name from SQL content based on type
-function extractStatementName(
-  content: string,
-  statementType: string
-): string | null {
-  if (!content || !statementType) return null;
-
-  const nameRegex = new RegExp(
-    `(CREATE|ALTER)\\s+${statementType}\\s+([\\w\\.]+)`,
-    "i"
-  );
-  const match = content.match(nameRegex);
-
-  if (match && match[2]) {
-    return match[2];
-  }
-
-  return null;
-}
-
-// Provider component
-export const StatementProvider = ({ children }: { children: ReactNode }) => {
+const StatementProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [editor] = useLexicalComposerContext();
   const [hasSelection, setHasSelection] = useState(false);
-  const [selectedText, setSelectedText] = useState("");
-  const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
   const [statementType, setStatementType] = useState("");
   const [selectedStatementName, setSelectedStatementName] = useState<
     string | null
   >(null);
-  const [selectionMap, setSelectionMap] = useState<Map<string, SelectionData>>(
-    new Map()
-  );
-  const selectionKeyRef = useRef<string | null>(null);
 
-  // Function to get statement from the current selection
-  const getSelectionStatement = useCallback((): Statement | null => {
-    let statement: Statement | null = null;
+  // Function to update the statement type of the selected text node
+  const handleTypeChange = (value: string) => {
+    if (!hasSelection) return;
 
-    editor.getEditorState().read(() => {
+    editor.update(() => {
       const selection = $getSelection();
 
-      if (!$isRangeSelection(selection)) {
-        return null;
-      }
-
-      // Check if selection consists of a single StatementTextNode
-      const nodes = selection.getNodes();
-
-      // If there's only one node and it's a StatementTextNode
-      if (nodes.length === 1 && nodes[0] instanceof StatementTextNode) {
-        const statementNode = nodes[0] as StatementTextNode;
-        statement = statementNode.getStatement();
-      }
-      // Check nodes in selection for StatementTextNode
-      else {
-        for (const node of nodes) {
-          if (node instanceof StatementTextNode) {
-            statement = node.getStatement();
-            break;
-          }
-        }
-      }
-    });
-
-    return statement;
-  }, [editor]);
-
-  // Get DOMRect for the current selection
-  const getSelectionRect = useCallback((): DOMRect | null => {
-    const domSelection = window.getSelection();
-    if (!domSelection || domSelection.rangeCount === 0) return null;
-
-    const range = domSelection.getRangeAt(0);
-    return range.getBoundingClientRect();
-  }, []);
-
-  // Update selection state when the selection changes
-  const updateSelectionState = useCallback(() => {
-    editor.getEditorState().read(() => {
-      const selection = $getSelection();
       if ($isRangeSelection(selection)) {
-        const text = selection.getTextContent();
-        const newHasSelection = text.length > 0;
+        const nodes = selection.getNodes();
 
-        setHasSelection(newHasSelection);
-        setSelectedText(text);
+        // Update all statement text nodes in the selection
+        nodes.forEach((node) => {
+          if ($isStatementTextNode(node)) {
+            node.setStatementType(value);
 
-        if (newHasSelection) {
-          // Get bounding rectangle of the selection
-          const rect = getSelectionRect();
-          setSelectionRect(rect);
-
-          // Create a unique key for this selection
-          const selectionKey = createSelectionKey(selection);
-          selectionKeyRef.current = selectionKey;
-
-          // Get statement settings from the selectionMap or from the current selection
-          if (selectionMap.has(selectionKey)) {
-            // If we have previously stored settings for this selection, use them
-            const data = selectionMap.get(selectionKey);
-            if (data?.statement) {
-              setStatementType(data.statement.type);
-              setSelectedStatementName(data.statement.name);
-            }
-          } else {
-            // Otherwise, check if the selection contains statement nodes
-            const selectionStatement = getSelectionStatement();
-
-            if (selectionStatement) {
-              setStatementType(selectionStatement.type);
-              setSelectedStatementName(selectionStatement.name);
-              // Store these settings in the map
-              setSelectionMap((prevMap) => {
-                const newMap = new Map(prevMap);
-                newMap.set(selectionKey, {
-                  key: selectionKey,
-                  statement: selectionStatement,
-                });
-                return newMap;
-              });
-            } else {
-              // If no existing statement, reset type and try to detect a name
-              setStatementType("");
-
-              // Try to extract statement name from selected text if a type is later selected
-              const detectedName = extractStatementName(text, statementType);
-              setSelectedStatementName(detectedName);
+            // Generate a statement name if not already set
+            if (!node.getStatementName()) {
+              const statementText = node.getTextContent().trim();
+              const firstLine = statementText.split("\n")[0];
+              const shortName =
+                firstLine.substring(0, 30) +
+                (firstLine.length > 30 ? "..." : "");
+              node.setStatementName(shortName);
+              setSelectedStatementName(shortName);
             }
           }
-        } else {
-          setSelectionRect(null);
-          selectionKeyRef.current = null;
-          setSelectedStatementName(null);
-        }
-      } else {
-        setHasSelection(false);
-        setSelectedText("");
-        setSelectionRect(null);
-        selectionKeyRef.current = null;
-        setSelectedStatementName(null);
+        });
       }
     });
-  }, [
-    editor,
-    getSelectionStatement,
-    getSelectionRect,
-    selectionMap,
-    statementType,
-  ]);
+
+    setStatementType(value);
+  };
 
   // Register selection change listener
   useEffect(() => {
-    return mergeRegister(
-      editor.registerUpdateListener(({ editorState }) => {
-        editorState.read(() => {
-          updateSelectionState();
+    return editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        editor.getEditorState().read(() => {
+          const selection = $getSelection();
+
+          // Update selection state
+          if ($isRangeSelection(selection) && !selection.isCollapsed()) {
+            setHasSelection(true);
+
+            // Check if selection contains StatementTextNode
+            const nodes = selection.getNodes();
+            const statementNode = nodes.find((node) =>
+              $isStatementTextNode(node)
+            ) as StatementTextNode | undefined;
+
+            if (statementNode) {
+              setStatementType(statementNode.getStatementType() || "");
+              setSelectedStatementName(
+                statementNode.getStatementName() || null
+              );
+            } else {
+              setStatementType("");
+              setSelectedStatementName(null);
+            }
+          } else {
+            setHasSelection(false);
+            setStatementType("");
+            setSelectedStatementName(null);
+          }
         });
-      }),
-      editor.registerCommand(
-        SELECTION_CHANGE_COMMAND,
-        () => {
-          updateSelectionState();
-          return false;
-        },
-        COMMAND_PRIORITY_LOW
-      )
+
+        return false;
+      },
+      COMMAND_PRIORITY_CRITICAL
     );
-  }, [editor, updateSelectionState]);
+  }, [editor]);
 
-  // Apply statement to selected text
-  const applyStatementToSelection = useCallback(() => {
-    if (hasSelection && statementType) {
-      editor.dispatchCommand(APPLY_STATEMENT_COMMAND, statementType);
-    }
-  }, [editor, hasSelection, statementType]);
+  // Register handler for Enter key to mark statement as parsed
+  useEffect(() => {
+    return editor.registerCommand(
+      KEY_ENTER_COMMAND,
+      () => {
+        editor.update(() => {
+          const selection = $getSelection();
 
-  // Handle statement type change
-  const handleTypeChange = useCallback(
-    (newType: string) => {
-      setStatementType(newType);
+          if ($isRangeSelection(selection)) {
+            const nodes = selection.getNodes();
 
-      // Try to extract statement name based on new type
-      if (selectedText) {
-        const detectedName = extractStatementName(selectedText, newType);
-        setSelectedStatementName(detectedName);
-      }
+            // Toggle isParsed state when Enter is pressed with a selection
+            nodes.forEach((node) => {
+              if ($isStatementTextNode(node) && node.getStatementType()) {
+                const isParsed = node.getIsParsed();
+                node.setIsParsed(!isParsed);
 
-      // Update selectionMap if we have an active selection
-      if (selectionKeyRef.current) {
-        setSelectionMap((prevMap) => {
-          const newMap = new Map(prevMap);
-          const existingData = newMap.get(selectionKeyRef.current!) || {
-            key: selectionKeyRef.current!,
-            statement: null,
-          };
-
-          // If there's an existing statement, update its type
-          if (existingData.statement) {
-            const updatedStatement = {
-              ...existingData.statement,
-              type: newType,
-            };
-            newMap.set(selectionKeyRef.current!, {
-              ...existingData,
-              statement: updatedStatement,
+                // Update parsedLines count in the store
+                if (!isParsed) {
+                  const lineCount = node
+                    .getTextContent()
+                    .split("\n")
+                    .filter((line) => line.trim()).length;
+                  useStore.setState((state) => ({
+                    parsedLines: state.parsedLines + lineCount,
+                  }));
+                }
+              }
             });
           }
-
-          return newMap;
         });
-      }
 
-      // Apply the statement immediately when a type is selected
-      if (newType) {
-        setTimeout(() => {
-          applyStatementToSelection();
-        }, 0);
-      }
-    },
-    [applyStatementToSelection, selectedText]
-  );
+        // Return false to allow the default Enter key behavior
+        return false;
+      },
+      COMMAND_PRIORITY_CRITICAL
+    );
+  }, [editor]);
 
-  // Context value
-  const contextValue: StatementContextType = {
+  const contextValue = {
     hasSelection,
-    selectedText,
-    selectionRect,
     statementType,
-    selectedStatementName,
-    setStatementType,
-    applyStatementToSelection,
     handleTypeChange,
-    selectionMap,
+    selectedStatementName,
+    setSelectedStatementName,
   };
 
   return (
@@ -319,8 +190,5 @@ export const StatementProvider = ({ children }: { children: ReactNode }) => {
     </StatementContext.Provider>
   );
 };
-
-// Custom hook to use the statement context
-export const useStatement = () => useContext(StatementContext);
 
 export default StatementProvider;

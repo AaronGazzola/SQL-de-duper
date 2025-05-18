@@ -4,7 +4,10 @@ import ProgressBar from "@/components/EditorProgressBar";
 import EditorToolbar from "@/components/EditorToolbar";
 import ExampleTheme from "@/components/ExampleTheme";
 import StatementProvider from "@/components/StatementProvider";
-import { StatementTextNode } from "@/components/StatementTextNode";
+import {
+  $createStatementTextNode,
+  StatementTextNode,
+} from "@/components/StatementTextNode";
 import { useStore } from "@/providers/store";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -15,7 +18,6 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
   $createParagraphNode,
-  $createTextNode,
   $getRoot,
   ParagraphNode,
   TextNode,
@@ -25,11 +27,21 @@ import React, { useEffect, useState } from "react";
 
 const placeholder = "Enter SQL statement...";
 
-// Define the editorConfig with explicit node registration
+// Define the editorConfig with explicit node registration and node replacement
 const editorConfig = {
   namespace: "SQLEditor",
-  // Register our custom StatementTextNode here explicitly along with standard nodes
-  nodes: [ParagraphNode, TextNode, StatementTextNode],
+  // Register our custom StatementTextNode along with standard nodes
+  nodes: [
+    ParagraphNode,
+    StatementTextNode,
+    {
+      replace: TextNode,
+      with: (node: TextNode) => {
+        return $createStatementTextNode(node.getTextContent());
+      },
+      withKlass: StatementTextNode,
+    },
+  ],
   onError(error: Error) {
     console.error(error);
   },
@@ -98,7 +110,8 @@ const FileNavigation: React.FC = () => {
           useStore.setState({ parseResults: updatedParseResults });
         }
 
-        const textNode = $createTextNode(fileContent);
+        // Use our custom StatementTextNode instead of TextNode
+        const textNode = $createStatementTextNode(fileContent);
         paragraphNode.append(textNode);
         root.append(paragraphNode);
       });

@@ -1,39 +1,37 @@
-// components/StatementTextNode.ts
-import { Statement } from "@/types/app.types";
+// components/StatementTextNode.tsx
+"use client";
 import {
   $applyNodeReplacement,
   EditorConfig,
+  LexicalNode,
   NodeKey,
   SerializedTextNode,
   TextNode,
 } from "lexical";
 
-// Interface for serialized StatementTextNode
-export interface SerializedStatementTextNode extends SerializedTextNode {
-  type: string;
-  statement: Statement | null;
-}
+export type SerializedStatementTextNode = SerializedTextNode & {
+  type: "statement-text";
+  statementType: string;
+  statementName: string;
+  isParsed: boolean;
+};
 
-// Create a StatementTextNode class by extending TextNode
 export class StatementTextNode extends TextNode {
-  __statement: Statement | null;
+  __statementType: string;
+  __statementName: string;
+  __isParsed: boolean;
 
-  constructor(text: string, statement: Statement | null = null, key?: NodeKey) {
+  constructor(
+    text: string,
+    statementType: string = "",
+    statementName: string = "",
+    isParsed: boolean = false,
+    key?: NodeKey
+  ) {
     super(text, key);
-    this.__statement = statement;
-  }
-
-  getStatement(): Statement | null {
-    return this.__statement;
-  }
-
-  setStatement(statement: Statement | null): void {
-    const self = this.getWritable();
-    self.__statement = statement;
-  }
-
-  hasStatement(): boolean {
-    return this.__statement !== null;
+    this.__statementType = statementType;
+    this.__statementName = statementName;
+    this.__isParsed = isParsed;
   }
 
   static getType(): string {
@@ -41,57 +39,74 @@ export class StatementTextNode extends TextNode {
   }
 
   static clone(node: StatementTextNode): StatementTextNode {
-    return new StatementTextNode(node.__text, node.__statement, node.__key);
+    return new StatementTextNode(
+      node.__text,
+      node.__statementType,
+      node.__statementName,
+      node.__isParsed,
+      node.__key
+    );
   }
 
   createDOM(config: EditorConfig): HTMLElement {
-    const dom = super.createDOM(config);
-    if (this.__statement) {
-      dom.setAttribute("data-statement-type", this.__statement.type);
-      dom.setAttribute("data-statement-name", this.__statement.name);
-      dom.setAttribute("data-statement-id", this.__statement.id);
-      dom.setAttribute(
-        "title",
-        `${this.__statement.type}: ${this.__statement.name}`
-      );
-      dom.classList.add("statement-node");
-    }
-    return dom;
+    const element = super.createDOM(config);
+    this.updateDOMStyles(element);
+    return element;
   }
 
   updateDOM(prevNode: this, dom: HTMLElement, config: EditorConfig): boolean {
-    const hasUpdate = super.updateDOM(prevNode, dom, config);
-
-    const hasStatementChanged =
-      (this.__statement !== null && prevNode.__statement === null) ||
-      (this.__statement === null && prevNode.__statement !== null) ||
-      (this.__statement !== null &&
-        prevNode.__statement !== null &&
-        (this.__statement.type !== prevNode.__statement.type ||
-          this.__statement.name !== prevNode.__statement.name ||
-          this.__statement.id !== prevNode.__statement.id));
-
-    if (hasStatementChanged) {
-      if (this.__statement) {
-        dom.setAttribute("data-statement-type", this.__statement.type);
-        dom.setAttribute("data-statement-name", this.__statement.name);
-        dom.setAttribute("data-statement-id", this.__statement.id);
-        dom.setAttribute(
-          "title",
-          `${this.__statement.type}: ${this.__statement.name}`
-        );
-        dom.classList.add("statement-node");
-      } else {
-        dom.removeAttribute("data-statement-type");
-        dom.removeAttribute("data-statement-name");
-        dom.removeAttribute("data-statement-id");
-        dom.removeAttribute("title");
-        dom.classList.remove("statement-node");
-      }
+    const isUpdated = super.updateDOM(prevNode, dom, config);
+    // Update styles if statement properties have changed
+    if (
+      prevNode.__statementType !== this.__statementType ||
+      prevNode.__statementName !== this.__statementName ||
+      prevNode.__isParsed !== this.__isParsed
+    ) {
+      this.updateDOMStyles(dom);
       return true;
     }
+    return isUpdated;
+  }
 
-    return hasUpdate;
+  updateDOMStyles(dom: HTMLElement): void {
+    // Apply styling based on statement properties
+    if (this.__statementType) {
+      dom.style.backgroundColor = "rgba(0, 255, 0, 0.1)"; // Faint green background
+    } else {
+      dom.style.backgroundColor = "";
+    }
+    if (this.__isParsed) {
+      dom.style.color = "#2563eb"; // Blue text for parsed statements
+    } else {
+      dom.style.color = "";
+    }
+  }
+
+  setStatementType(statementType: string): void {
+    const self = this.getWritable();
+    self.__statementType = statementType;
+  }
+
+  setStatementName(statementName: string): void {
+    const self = this.getWritable();
+    self.__statementName = statementName;
+  }
+
+  setIsParsed(isParsed: boolean): void {
+    const self = this.getWritable();
+    self.__isParsed = isParsed;
+  }
+
+  getStatementType(): string {
+    return this.__statementType;
+  }
+
+  getStatementName(): string {
+    return this.__statementName;
+  }
+
+  getIsParsed(): boolean {
+    return this.__isParsed;
   }
 
   exportJSON(): SerializedStatementTextNode {
@@ -99,7 +114,9 @@ export class StatementTextNode extends TextNode {
     return {
       ...baseJSON,
       type: "statement-text",
-      statement: this.__statement,
+      statementType: this.__statementType,
+      statementName: this.__statementName,
+      isParsed: this.__isParsed,
     };
   }
 
@@ -108,7 +125,9 @@ export class StatementTextNode extends TextNode {
   ): StatementTextNode {
     const node = $createStatementTextNode(
       serializedNode.text,
-      serializedNode.statement
+      serializedNode.statementType,
+      serializedNode.statementName,
+      serializedNode.isParsed
     );
     node.setFormat(serializedNode.format);
     node.setDetail(serializedNode.detail);
@@ -118,17 +137,19 @@ export class StatementTextNode extends TextNode {
   }
 }
 
-// Helper function to create StatementTextNode
 export function $createStatementTextNode(
   text: string,
-  statement: Statement | null = null
+  statementType: string = "",
+  statementName: string = "",
+  isParsed: boolean = false
 ): StatementTextNode {
-  return $applyNodeReplacement(new StatementTextNode(text, statement));
+  return $applyNodeReplacement(
+    new StatementTextNode(text, statementType, statementName, isParsed)
+  );
 }
 
-// Helper function to check if node is StatementTextNode
 export function $isStatementTextNode(
-  node: TextNode | null | undefined
+  node: LexicalNode | null | undefined
 ): node is StatementTextNode {
   return node instanceof StatementTextNode;
 }

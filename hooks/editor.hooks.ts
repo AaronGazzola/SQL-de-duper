@@ -81,7 +81,12 @@ export function useStatementEditor() {
         );
 
         // Create a StatementTextNode to replace the selected text
-        const statementNode = $createStatementTextNode(selectedText, statement);
+        const statementNode = $createStatementTextNode(
+          selectedText,
+          statement.type,
+          statement.name,
+          true
+        );
         selection.insertNodes([statementNode]);
 
         // Update store with the new statement or add it as a version to existing statement

@@ -1,5 +1,6 @@
 // components/EditorToolbar.tsx
 "use client";
+
 import {
   sqlStatementTypes,
   useStatement,
@@ -18,7 +19,6 @@ import React from "react";
 const EditorToolbar: React.FC = () => {
   const {
     hasSelection,
-
     statementType,
     handleTypeChange,
     selectedStatementName,
@@ -56,7 +56,6 @@ const EditorToolbar: React.FC = () => {
           </SelectContent>
         </Select>
       </div>
-
       <div className="flex flex-col gap-1 flex-1">
         <Label
           htmlFor="statement-name"
