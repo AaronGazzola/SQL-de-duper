@@ -44,7 +44,19 @@ export interface StoreState {
   parseResults: ParseResult[];
   totalLines: number;
   parsedLines: number;
-  onFilesDrop: (files: File[]) => void;
+  selectedFile: string | null;
+  files: {
+    filename: string;
+    timestamp: number;
+    isParsed: boolean;
+  }[];
+  onFilesDrop: (files: File[]) => Promise<void>;
   setFilters: (filters: Filter) => void;
   resetStore: () => void;
+  selectFile: (filename: string) => void;
+  copyParsedSQL: () => Promise<void>;
+  downloadParsedSQL: () => void;
+  setFileStats: (filename: string, total: number, parsed: number) => void;
+  setParseProgress: (filename: string, parsed: number) => void;
+  toggleFileParsed: (filename: string, isParsed: boolean) => void;
 }

@@ -8,6 +8,7 @@ import {
   $createStatementTextNode,
   StatementTextNode,
 } from "@/components/StatementTextNode";
+import { useStatementEditor } from "@/hooks/editor.hooks";
 import { useStore } from "@/providers/store";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -23,7 +24,7 @@ import {
   TextNode,
 } from "lexical";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 
 const placeholder = "Enter SQL statement...";
 
@@ -95,18 +96,6 @@ const FileNavigation: React.FC = () => {
         // Use the file content if available, otherwise fallback to filename
         const fileContent = file.content || file.filename;
 
-        // Count total lines for progress bar
-        const totalLines = fileContent
-          .split("\n")
-          .filter((line) => line.trim()).length;
-
-        // Update parse results with total line count if not already set
-        if (!file.stats || file.stats.total === 0) {
-          useStore
-            .getState()
-            .setFileStats(file.filename, totalLines, file.stats?.parsed || 0);
-        }
-
         // Extract timestamp from filename if possible, or use file timestamp
         let timestamp = file.timestamp || Date.now();
         const fileNameTimestampMatch = file.filename.match(/^(\d+)/);
@@ -115,13 +104,7 @@ const FileNavigation: React.FC = () => {
         }
 
         // Use our custom StatementTextNode instead of TextNode
-        const textNode = $createStatementTextNode(
-          fileContent,
-          "",
-          "",
-          false,
-          timestamp
-        );
+        const textNode = $createStatementTextNode(fileContent, "", timestamp);
         paragraphNode.append(textNode);
         root.append(paragraphNode);
       });
@@ -189,19 +172,47 @@ const EditorContent: React.FC = () => {
   );
 };
 
+// Custom hook for StatementTextNode transform registration
+const useNodeTransforms = () => {
+  // Use the statement editor hook
+  useStatementEditor();
+};
+
 const Editor: React.FC = () => {
+  const selectedFile = useStore((state) => state.selectedFile);
+  const files = useStore((state) => state.files);
+
+  // Check if current file is marked as parsed
+  const isParsed = useMemo(() => {
+    if (!selectedFile) return false;
+    const currentFile = files.find((file) => file.filename === selectedFile);
+    return currentFile?.isParsed || false;
+  }, [selectedFile, files]);
+
   return (
     <LexicalComposer initialConfig={editorConfig}>
       <StatementProvider>
-        <div className="flex flex-col flex-grow overflow-hidden h-full">
+        <div
+          className={`flex flex-col flex-grow overflow-hidden h-full ${
+            isParsed ? "bg-blue-50" : ""
+          }`}
+        >
           <FileNavigation />
           <EditorToolbar />
           <EditorProgressBar />
           <EditorContent />
+          {/* Register the node transforms */}
+          <NodeTransformPlugin />
         </div>
       </StatementProvider>
     </LexicalComposer>
   );
+};
+
+// Plugin to register node transforms
+const NodeTransformPlugin: React.FC = () => {
+  useNodeTransforms();
+  return null;
 };
 
 export default Editor;

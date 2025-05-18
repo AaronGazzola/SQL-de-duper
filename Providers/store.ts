@@ -20,6 +20,11 @@ export const useStore = create<{
   totalLines: number;
   parsedLines: number;
   selectedFile: string | null;
+  files: {
+    filename: string;
+    timestamp: number;
+    isParsed: boolean;
+  }[];
   onFilesDrop: (files: File[]) => Promise<void>;
   setFilters: (filters: Filter) => void;
   resetStore: () => void;
@@ -28,6 +33,7 @@ export const useStore = create<{
   downloadParsedSQL: () => void;
   setFileStats: (filename: string, total: number, parsed: number) => void;
   setParseProgress: (filename: string, parsed: number) => void;
+  toggleFileParsed: (filename: string, isParsed: boolean) => void;
 }>()(
   persist(
     (set, get) => ({
@@ -38,11 +44,14 @@ export const useStore = create<{
       totalLines: 0,
       parsedLines: 0,
       selectedFile: null,
+      files: [],
 
       // Handle file drops
       onFilesDrop: async (files: File[]) => {
-        const { parseResults: existingParseResults } = get();
+        const { parseResults: existingParseResults, files: existingFiles } =
+          get();
         const newParseResults: ParseResult[] = [...existingParseResults];
+        const newFiles = [...existingFiles];
         let totalLinesCount = 0;
         const parsedLinesCount = 0;
 
@@ -53,16 +62,32 @@ export const useStore = create<{
             const fileContent = await file.text();
             const lineCount = fileContent.split("\n").length;
 
+            // Extract timestamp from filename if possible, or use current time
+            let timestamp = Date.now();
+            const fileNameTimestampMatch = file.name.match(/^(\d+)/);
+            if (fileNameTimestampMatch && fileNameTimestampMatch[1]) {
+              timestamp = parseInt(fileNameTimestampMatch[1], 10);
+            }
+
             // Create parse result with filename, file contents, and timestamp
             const newParseResult: ParseResult = {
               filename: file.name,
               content: fileContent, // Store the file content for later use
-              timestamp: Date.now(),
+              timestamp: timestamp,
               stats: {
                 total: lineCount,
                 parsed: 0, // Initially parsed is 0
               },
             };
+
+            // Add file metadata to files array
+            if (!newFiles.some((f) => f.filename === file.name)) {
+              newFiles.push({
+                filename: file.name,
+                timestamp: timestamp,
+                isParsed: false,
+              });
+            }
 
             // Update total lines count
             totalLinesCount += lineCount;
@@ -77,6 +102,7 @@ export const useStore = create<{
         // Update state with the processed files
         set((state) => ({
           parseResults: newParseResults,
+          files: newFiles,
           totalLines: state.totalLines + totalLinesCount,
           parsedLines: state.parsedLines + parsedLinesCount,
           selectedFile:
@@ -100,6 +126,7 @@ export const useStore = create<{
           totalLines: 0,
           parsedLines: 0,
           selectedFile: null,
+          files: [],
         });
       },
 
@@ -173,6 +200,60 @@ export const useStore = create<{
         });
       },
 
+      // Toggle file parsed status
+      toggleFileParsed: (filename: string, isParsed: boolean) => {
+        set((state) => {
+          // Update files array with isParsed flag
+          const updatedFiles = [...state.files];
+          const fileIndex = updatedFiles.findIndex(
+            (file) => file.filename === filename
+          );
+
+          if (fileIndex !== -1) {
+            updatedFiles[fileIndex].isParsed = isParsed;
+          } else if (filename) {
+            // If file doesn't exist in files array but we have a filename, add it
+            let timestamp = Date.now();
+            const fileNameTimestampMatch = filename.match(/^(\d+)/);
+            if (fileNameTimestampMatch && fileNameTimestampMatch[1]) {
+              timestamp = parseInt(fileNameTimestampMatch[1], 10);
+            }
+
+            updatedFiles.push({
+              filename,
+              timestamp,
+              isParsed,
+            });
+          }
+
+          // Update parse progress to match total lines if isParsed is true
+          const updatedParseResults = [...state.parseResults];
+          const parseResultIndex = updatedParseResults.findIndex(
+            (result) => result.filename === filename
+          );
+
+          if (parseResultIndex !== -1) {
+            const total = updatedParseResults[parseResultIndex].stats.total;
+            const oldParsed =
+              updatedParseResults[parseResultIndex].stats.parsed;
+            const newParsed = isParsed ? total : 0;
+            const parsedDifference = newParsed - oldParsed;
+
+            updatedParseResults[parseResultIndex].stats.parsed = newParsed;
+
+            return {
+              files: updatedFiles,
+              parseResults: updatedParseResults,
+              parsedLines: state.parsedLines + parsedDifference,
+            };
+          }
+
+          return {
+            files: updatedFiles,
+          };
+        });
+      },
+
       // Copy parsed SQL to clipboard
       copyParsedSQL: async () => {
         const { statements } = get();
@@ -220,6 +301,7 @@ export const useStore = create<{
         totalLines: state.totalLines,
         parsedLines: state.parsedLines,
         selectedFile: state.selectedFile,
+        files: state.files,
       }),
     }
   )

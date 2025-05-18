@@ -1,80 +1,79 @@
 // components/EditorProgressBar.tsx
 "use client";
-import { $isStatementTextNode } from "@/components/StatementTextNode";
-import { useStatementEditor } from "@/hooks/editor.hooks";
 import { useStore } from "@/providers/store";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getRoot } from "lexical";
 import { Check } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const EditorProgressBar: React.FC = () => {
-  const [editor] = useLexicalComposerContext();
   const parseResults = useStore((state) => state.parseResults);
   const selectedFile = useStore((state) => state.selectedFile);
-  const setParseProgress = useStore((state) => state.setParseProgress);
-  const [overrideParsed, setOverrideParsed] = useState(false);
-  const { toggleAllParsed } = useStatementEditor();
+  const statements = useStore((state) => state.statements);
+  const files = useStore((state) => state.files);
+  const toggleFileParsed = useStore((state) => state.toggleFileParsed);
+  const [parsedPercentage, setParsedPercentage] = useState(0);
 
   // Find current file in parse results
-  const currentFile = parseResults.find(
-    (file) => file.filename === selectedFile
-  ) || {
-    filename: "No file loaded",
-    stats: { total: 0, parsed: 0 },
-  };
+  const currentFile = useMemo(
+    () =>
+      parseResults.find((file) => file.filename === selectedFile) || {
+        filename: "No file loaded",
+        content: "",
+        stats: { total: 0, parsed: 0 },
+      },
+    [parseResults, selectedFile]
+  );
 
-  // Calculate progress percentage
-  const progressPercentage =
-    currentFile.stats.total > 0
-      ? (currentFile.stats.parsed / currentFile.stats.total) * 100
-      : 0;
+  // Get current file parsed status
+  const currentFileMeta = useMemo(
+    () => files.find((file) => file.filename === selectedFile),
+    [files, selectedFile]
+  );
 
-  const allParsed = currentFile.stats.parsed === currentFile.stats.total;
+  const isParsed = currentFileMeta?.isParsed || false;
 
-  // Calculate actual parsed lines from editor content
+  // Calculate progress by comparing file content with statements content
   useEffect(() => {
-    // Only calculate if we're not overriding the parsed status
-    if (!overrideParsed && selectedFile) {
-      editor.getEditorState().read(() => {
-        const root = $getRoot();
-        let parsedLines = 0;
+    if (selectedFile && currentFile.content) {
+      // If file is marked as parsed, show 100%
+      if (isParsed) {
+        setParsedPercentage(100);
+        return;
+      }
 
-        // Traverse all nodes in the editor
-        root.getChildren().forEach((paragraphNode) => {
-          paragraphNode.getChildren().forEach((node) => {
-            if ($isStatementTextNode(node) && node.getIsParsed()) {
-              // Count lines in parsed statement nodes
-              const content = node.getTextContent();
-              const lines = content.split("\n").length;
-              parsedLines += lines;
-            }
-          });
-        });
+      // Get all statement content
+      const allStatementContent = statements
+        .map((group) => group.content.content)
+        .join("\n");
 
-        // Update the store with the calculated parsed lines
-        if (selectedFile) {
-          setParseProgress(selectedFile, parsedLines);
+      // Compare with file content
+      const fileContent = currentFile.content || "";
+
+      // Calculate how much of the file content is covered by statements
+      const statementWords = new Set(
+        allStatementContent.split(/\s+/).filter(Boolean)
+      );
+      const fileWords = fileContent.split(/\s+/).filter(Boolean);
+      let coveredWords = 0;
+      fileWords.forEach((word) => {
+        if (statementWords.has(word)) {
+          coveredWords++;
         }
       });
+
+      const percentage =
+        fileWords.length > 0
+          ? Math.min(100, (coveredWords / fileWords.length) * 100)
+          : 0;
+      setParsedPercentage(percentage);
+    } else {
+      setParsedPercentage(0);
     }
-  }, [editor, selectedFile, overrideParsed, setParseProgress]);
+  }, [selectedFile, statements, currentFile, isParsed]);
 
   // Handle toggle all parsed
   const handleToggleAllParsed = () => {
-    if (allParsed && overrideParsed) {
-      // Revert to calculating from editor content
-      setOverrideParsed(false);
-      toggleAllParsed(false);
-    } else {
-      // Mark all as parsed
-      setOverrideParsed(true);
-      toggleAllParsed(true);
-
-      // Update store directly
-      if (selectedFile) {
-        setParseProgress(selectedFile, currentFile.stats.total);
-      }
+    if (selectedFile) {
+      toggleFileParsed(selectedFile, !isParsed);
     }
   };
 
@@ -87,18 +86,18 @@ const EditorProgressBar: React.FC = () => {
       <div className="flex-grow h-2 bg-gray-200 rounded-full overflow-hidden">
         <div
           className="h-full bg-blue-500 transition-all duration-300"
-          style={{ width: `${progressPercentage}%` }}
+          style={{ width: `${parsedPercentage}%` }}
         ></div>
       </div>
       <div className="text-sm text-gray-600">
-        {currentFile.stats.parsed}/{currentFile.stats.total} parsed
+        {Math.round(parsedPercentage)}% parsed
       </div>
       <button
         onClick={handleToggleAllParsed}
         className={`p-1 rounded-full ${
-          allParsed ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
+          isParsed ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
         } hover:bg-blue-200`}
-        title={allParsed ? "Mark as unparsed" : "Mark all as parsed"}
+        title={isParsed ? "Mark as unparsed" : "Mark as fully parsed"}
       >
         <Check size={18} />
       </button>
