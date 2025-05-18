@@ -10,14 +10,14 @@ import { useState } from "react";
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState("editor");
-  const { parseResults } = useStore();
+  const { files } = useStore();
 
   return (
     <div className="flex h-screen w-full">
       <FileDropZone />
       <div className="flex-1 overflow-auto w-full">
         <div className="container py-6 w-full h-full">
-          {!parseResults.length ? (
+          {!files.length ? (
             <div className="text-center py-8 flex flex-col items-center gap-6">
               <h2 className="text-2xl font-bold ">Welcome to SQL Squasher</h2>
               <p className="text-gray-500">Drop SQL files here</p>
@@ -41,7 +41,10 @@ export default function HomePage() {
                 <Editor />
               </TabsContent>
 
-              <TabsContent value="statements">
+              <TabsContent
+                value="statements"
+                className="w-full mx-auto relative h-full"
+              >
                 <StatementAccordion />
               </TabsContent>
             </Tabs>

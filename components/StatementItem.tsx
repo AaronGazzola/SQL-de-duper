@@ -103,7 +103,7 @@ export function StatementItem({
       className="border rounded-lg mb-2 overflow-hidden"
     >
       <div className="relative">
-        <AccordionTrigger className="px-4 py-3 hover:bg-gray-50 flex-1">
+        <AccordionTrigger className="px-4 py-3 hover:bg-gray-50 flex-1 border-b rounded-lg">
           <div className="flex flex-col items-start text-left">
             <div className="flex items-center gap-2 mb-1">
               <Badge

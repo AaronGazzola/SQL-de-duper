@@ -30,7 +30,7 @@ import { useState } from "react";
 export default function Sidebar() {
   const { open, isMobile } = useSidebar();
   const {
-    parseResults,
+    editorFiles,
     resetStore,
     totalLines,
     parsedLines,
@@ -44,7 +44,7 @@ export default function Sidebar() {
   const [copying, setCopying] = useState(false);
 
   // Calculate progress percentage for all files
-  const progress =
+  const overallProgress =
     totalLines > 0 ? Math.round((parsedLines / totalLines) * 100) : 0;
 
   const handleReset = () => {
@@ -98,16 +98,16 @@ export default function Sidebar() {
         </SidebarGroup>
 
         <SidebarGroup className="p-4">
-          <SidebarGroupLabel>Parsing Progress</SidebarGroupLabel>
+          <SidebarGroupLabel>Overall Progress</SidebarGroupLabel>
           <SidebarGroupContent className={cn(!isExpanded && "h-32")}>
             <div className={cn(isExpanded ? "" : " rotate-90")}>
               <Progress
-                value={progress}
+                value={overallProgress}
                 className={cn("h-2", isExpanded ? "w-full" : "w-32")}
               />
               {isExpanded && (
                 <p className="text-xs text-gray-500 mt-1">
-                  {progress}% Complete ({parsedLines}/{totalLines} lines)
+                  {overallProgress}% Complete ({parsedLines}/{totalLines} lines)
                 </p>
               )}
             </div>
@@ -120,32 +120,52 @@ export default function Sidebar() {
               <SidebarGroupLabel>Uploaded Files</SidebarGroupLabel>
               <SidebarGroupContent>
                 <div className="space-y-1 overflow-y-auto absolute inset-3 top-12">
-                  {parseResults.map((file, index) => (
-                    <TooltipProvider key={index}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={cn(
-                              "text-sm truncate p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded cursor-pointer",
-                              selectedFile === file.filename &&
-                                "bg-gray-200 dark:bg-gray-800"
-                            )}
-                            onClick={() => selectFile(file.filename)}
-                          >
-                            {file.filename} ({file.stats.parsed}/
-                            {file.stats.total} lines)
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>
-                            {file.filename} - {file.stats.parsed} of{" "}
-                            {file.stats.total} lines parsed
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ))}
-                  {parseResults.length === 0 && (
+                  {editorFiles.map((file, index) => {
+                    // Calculate individual file progress
+                    const fileProgress =
+                      file.stats.total > 0
+                        ? Math.round(
+                            (file.stats.parsed / file.stats.total) * 100
+                          )
+                        : 0;
+
+                    return (
+                      <TooltipProvider key={index}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={cn(
+                                "text-sm p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded cursor-pointer",
+                                selectedFile === file.filename &&
+                                  "bg-gray-200 dark:bg-gray-800"
+                              )}
+                              onClick={() => selectFile(file.filename)}
+                            >
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="truncate">
+                                  {file.filename}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {fileProgress}%
+                                </span>
+                              </div>
+                              <Progress
+                                value={fileProgress}
+                                className="h-1 w-full"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {file.filename} - {file.stats.parsed} of{" "}
+                              {file.stats.total} lines parsed ({fileProgress}%)
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })}
+                  {editorFiles.length === 0 && (
                     <p className="text-xs text-gray-400 italic">
                       No files uploaded
                     </p>
@@ -165,7 +185,7 @@ export default function Sidebar() {
                           variant="outline"
                           size="sm"
                           className="flex-1"
-                          disabled={progress < 100}
+                          disabled={overallProgress < 100}
                           onClick={handleCopy}
                         >
                           <Copy className="h-4 w-4 mr-1" />
@@ -185,7 +205,7 @@ export default function Sidebar() {
                           variant="outline"
                           size="sm"
                           className="flex-1"
-                          disabled={progress < 100}
+                          disabled={overallProgress < 100}
                           onClick={downloadParsedSQL}
                         >
                           <Download className="h-4 w-4 mr-1" />

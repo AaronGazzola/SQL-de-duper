@@ -100,11 +100,11 @@ const FileUpload = () => {
 
 ```tsx
 // Example structure
-const ParseReport = ({ parseResults }: { parseResults: ParsedFile[] }) => {
+const ParseReport = ({ FileDatas }: { files: ParsedFile[] }) => {
   const totalStats = useMemo(() => {
     // calculate overall statistics
     return { total: 0, parsed: 0, percentage: 0 };
-  }, [parseResults]);
+  }, [FileDatas]);
 
   return (
     <div className="parse-report">
@@ -117,7 +117,7 @@ const ParseReport = ({ parseResults }: { parseResults: ParsedFile[] }) => {
       </div>
 
       <div className="file-stats">
-        {parseResults.map((file) => (
+        {FileDatas.map((file) => (
           <FileParseStats
             key={file.filename}
             file={file}

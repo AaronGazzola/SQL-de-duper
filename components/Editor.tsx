@@ -3,12 +3,6 @@
 import EditorProgressBar from "@/components/EditorProgressBar";
 import EditorToolbar from "@/components/EditorToolbar";
 import ExampleTheme from "@/components/ExampleTheme";
-import StatementProvider from "@/components/StatementProvider";
-import {
-  $createStatementTextNode,
-  StatementTextNode,
-} from "@/components/StatementTextNode";
-import { useStatementEditor } from "@/hooks/editor.hooks";
 import { useStore } from "@/providers/store";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -19,11 +13,12 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
   $createParagraphNode,
+  $createTextNode,
   $getRoot,
   ParagraphNode,
   TextNode,
 } from "lexical";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import React, { useEffect, useMemo } from "react";
 
 const placeholder = "Enter SQL statement...";
@@ -32,17 +27,7 @@ const placeholder = "Enter SQL statement...";
 const editorConfig = {
   namespace: "SQLEditor",
   // Register our custom StatementTextNode along with standard nodes
-  nodes: [
-    ParagraphNode,
-    StatementTextNode,
-    {
-      replace: TextNode,
-      with: (node: TextNode) => {
-        return $createStatementTextNode(node.getTextContent());
-      },
-      withKlass: StatementTextNode,
-    },
-  ],
+  nodes: [ParagraphNode, TextNode],
   onError(error: Error) {
     console.error(error);
   },
@@ -51,35 +36,35 @@ const editorConfig = {
 
 // File Navigation component for showing current file and navigation controls
 const FileNavigation: React.FC = () => {
-  const parseResults = useStore((state) => state.parseResults);
+  const editorFiles = useStore((state) => state.editorFiles);
   const selectedFile = useStore((state) => state.selectedFile);
   const selectFile = useStore((state) => state.selectFile);
   const [editor] = useLexicalComposerContext();
 
-  const fileCount = parseResults.length;
-  const currentFileIndex = parseResults.findIndex(
+  const fileCount = editorFiles.length;
+  const currentFileIndex = editorFiles.findIndex(
     (file) => file.filename === selectedFile
   );
-  const currentFile = parseResults[currentFileIndex] || {
+  const currentFile = editorFiles[currentFileIndex] || {
     filename: "No file loaded",
   };
 
   const navigateToPreviousFile = () => {
     if (currentFileIndex > 0) {
-      selectFile(parseResults[currentFileIndex - 1].filename);
+      selectFile(editorFiles[currentFileIndex - 1].filename);
     }
   };
 
   const navigateToNextFile = () => {
     if (currentFileIndex < fileCount - 1) {
-      selectFile(parseResults[currentFileIndex + 1].filename);
+      selectFile(editorFiles[currentFileIndex + 1].filename);
     }
   };
 
   // Load file content into editor when the selected file changes
   useEffect(() => {
-    if (parseResults.length > 0 && selectedFile) {
-      const file = parseResults.find((file) => file.filename === selectedFile);
+    if (editorFiles.length > 0 && selectedFile) {
+      const file = editorFiles.find((file) => file.filename === selectedFile);
 
       if (!file) return;
 
@@ -96,20 +81,12 @@ const FileNavigation: React.FC = () => {
         // Use the file content if available, otherwise fallback to filename
         const fileContent = file.content || file.filename;
 
-        // Extract timestamp from filename if possible, or use file timestamp
-        let timestamp = file.timestamp || Date.now();
-        const fileNameTimestampMatch = file.filename.match(/^(\d+)/);
-        if (fileNameTimestampMatch && fileNameTimestampMatch[1]) {
-          timestamp = parseInt(fileNameTimestampMatch[1], 10);
-        }
-
-        // Use our custom StatementTextNode instead of TextNode
-        const textNode = $createStatementTextNode(fileContent, "", timestamp);
+        const textNode = $createTextNode(fileContent);
         paragraphNode.append(textNode);
         root.append(paragraphNode);
       });
     }
-  }, [selectedFile, parseResults, editor]);
+  }, [selectedFile, editorFiles, editor]);
 
   return (
     <div className="flex items-center justify-between rounded-lg border-b px-4 py-2">
@@ -148,6 +125,26 @@ const FileNavigation: React.FC = () => {
   );
 };
 
+// Success Alert component for showing when file is fully parsed
+const SuccessAlert: React.FC = () => {
+  return (
+    <div className="flex items-center justify-center h-full bg-green-50 p-6">
+      <div className="bg-white rounded-lg shadow-md p-8 max-w-md text-center">
+        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+          <Check className="h-6 w-6 text-green-600" />
+        </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">
+          File Successfully Parsed
+        </h3>
+        <p className="text-sm text-gray-500">
+          All content from this file has been processed. You can view the
+          results in the sidebar.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // EditorContent component for rendering the editor with parsed status
 const EditorContent: React.FC = () => {
   return (
@@ -172,47 +169,35 @@ const EditorContent: React.FC = () => {
   );
 };
 
-// Custom hook for StatementTextNode transform registration
-const useNodeTransforms = () => {
-  // Use the statement editor hook
-  useStatementEditor();
-};
-
 const Editor: React.FC = () => {
   const selectedFile = useStore((state) => state.selectedFile);
-  const files = useStore((state) => state.files);
+  const editorFiles = useStore((state) => state.editorFiles);
 
   // Check if current file is marked as parsed
   const isParsed = useMemo(() => {
     if (!selectedFile) return false;
-    const currentFile = files.find((file) => file.filename === selectedFile);
+    const currentFile = editorFiles.find(
+      (file) => file.filename === selectedFile
+    );
     return currentFile?.isParsed || false;
-  }, [selectedFile, files]);
+  }, [selectedFile, editorFiles]);
 
   return (
     <LexicalComposer initialConfig={editorConfig}>
-      <StatementProvider>
-        <div
-          className={`flex flex-col flex-grow overflow-hidden h-full ${
-            isParsed ? "bg-blue-50" : ""
-          }`}
-        >
-          <FileNavigation />
-          <EditorToolbar />
-          <EditorProgressBar />
-          <EditorContent />
-          {/* Register the node transforms */}
-          <NodeTransformPlugin />
-        </div>
-      </StatementProvider>
+      <div
+        className={`flex flex-col flex-grow overflow-hidden h-full ${
+          isParsed ? "bg-blue-50" : ""
+        }`}
+      >
+        <FileNavigation />
+        <EditorToolbar />
+        <EditorProgressBar />
+
+        {/* Show success alert when file is marked as parsed, otherwise show editor */}
+        {isParsed ? <SuccessAlert /> : <EditorContent />}
+      </div>
     </LexicalComposer>
   );
-};
-
-// Plugin to register node transforms
-const NodeTransformPlugin: React.FC = () => {
-  useNodeTransforms();
-  return null;
 };
 
 export default Editor;

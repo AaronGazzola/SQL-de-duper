@@ -23,10 +23,11 @@ export interface Filter {
   showUnparsed: boolean;
 }
 
-export interface ParseResult {
+export interface FileData {
   filename: string;
-  content?: string; // Added content field to store the file contents
+  content?: string;
   timestamp?: number;
+  isParsed?: boolean;
   stats: {
     total: number;
     parsed: number;
@@ -41,15 +42,13 @@ export interface StoreState {
   statements: StatementGroup[];
   filters: Filter;
   statementTypes: string[];
-  parseResults: ParseResult[];
+  files: FileData[]; // Original files
+  editorFiles: FileData[]; // Editable copies for the editor
   totalLines: number;
   parsedLines: number;
   selectedFile: string | null;
-  files: {
-    filename: string;
-    timestamp: number;
-    isParsed: boolean;
-  }[];
+
+  // Actions
   onFilesDrop: (files: File[]) => Promise<void>;
   setFilters: (filters: Filter) => void;
   resetStore: () => void;
@@ -59,4 +58,7 @@ export interface StoreState {
   setFileStats: (filename: string, total: number, parsed: number) => void;
   setParseProgress: (filename: string, parsed: number) => void;
   toggleFileParsed: (filename: string, isParsed: boolean) => void;
+  addStatement: (name: string, content: string, fileName: string) => void;
+  resetFile: (filename: string) => void;
+  updateFileContent: (filename: string, content: string) => void;
 }

@@ -1,5 +1,5 @@
 // lib/parse.util.ts
-import { ParseResult, Statement } from "@/types/app.types";
+import { FileData, Statement } from "@/types/app.types";
 import crypto from "crypto";
 
 // SQL statement types
@@ -22,7 +22,7 @@ export const parseSqlFile = async (
   file: File
 ): Promise<{
   statements: Statement[];
-  parseResult: ParseResult;
+  FileData: FileData;
 }> => {
   // Check if file name contains a timestamp
   const timestampMatch = file.name.match(/(\d{10,13})/);
@@ -106,7 +106,7 @@ export const parseSqlFile = async (
   }
 
   // Create parse result
-  const parseResult: ParseResult = {
+  const FileData: FileData = {
     filename: file.name,
     timestamp,
     stats: {
@@ -115,7 +115,7 @@ export const parseSqlFile = async (
     },
   };
 
-  return { statements, parseResult };
+  return { statements, FileData };
 };
 
 // Parse statement type and name
