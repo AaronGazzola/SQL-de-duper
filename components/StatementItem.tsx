@@ -31,7 +31,6 @@ export function StatementItem({
 
   // We use the versions array passed as a prop instead of recalculating
   const sortedVersions = versions.sort((a, b) => b.timestamp - a.timestamp); // Ensure newest first
-  console.log("Sorted versions:", sortedVersions);
   const totalVersions = sortedVersions.length;
   const currentVersionIndex = currentPage - 1; // Convert page to 0-based index
   const currentStatement = sortedVersions[currentVersionIndex] || statement;
