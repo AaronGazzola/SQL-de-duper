@@ -1,6 +1,6 @@
 // components/FileDropZone.tsx
 "use client";
-import { useStore } from "@/providers/store";
+import { useStore } from "@/store/store";
 import { File } from "@/types/app.types";
 import { FileText } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";

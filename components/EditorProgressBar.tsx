@@ -2,7 +2,7 @@
 "use client";
 
 import { Progress } from "@/components/ui/progress";
-import { useStore } from "@/providers/store";
+import { useStore } from "@/store/store";
 import { Check, RotateCcw } from "lucide-react";
 import { useMemo } from "react";
 

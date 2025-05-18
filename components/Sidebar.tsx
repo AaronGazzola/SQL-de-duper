@@ -30,7 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/providers/store";
+import { useStore } from "@/store/store";
 import { Copy, Download, Menu, RefreshCw } from "lucide-react";
 import { useState } from "react";
 

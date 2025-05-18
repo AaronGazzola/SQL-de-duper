@@ -6,7 +6,7 @@ import { StatementAccordion } from "@/components/StatementAccordion";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useStore } from "@/providers/store";
+import { useStore } from "@/store/store";
 import { Menu, Upload } from "lucide-react";
 import { useState } from "react";
 

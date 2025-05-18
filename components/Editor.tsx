@@ -3,7 +3,7 @@
 import EditorProgressBar from "@/components/EditorProgressBar";
 import EditorToolbar from "@/components/EditorToolbar";
 import ExampleTheme from "@/components/ExampleTheme";
-import { useStore } from "@/providers/store";
+import { useStore } from "@/store/store";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";

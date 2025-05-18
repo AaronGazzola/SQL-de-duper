@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn, getDisplayName } from "@/lib/utils";
-import { useStore } from "@/providers/store";
+import { useStore } from "@/store/store";
 import { Menu, Search, X } from "lucide-react";
 import { useState } from "react";
 
