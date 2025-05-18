@@ -1,6 +1,6 @@
 // components/Editor.tsx
 "use client";
-import ProgressBar from "@/components/EditorProgressBar";
+import EditorProgressBar from "@/components/EditorProgressBar";
 import EditorToolbar from "@/components/EditorToolbar";
 import ExampleTheme from "@/components/ExampleTheme";
 import StatementProvider from "@/components/StatementProvider";
@@ -23,7 +23,7 @@ import {
   TextNode,
 } from "lexical";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 
 const placeholder = "Enter SQL statement...";
 
@@ -51,30 +51,36 @@ const editorConfig = {
 // File Navigation component for showing current file and navigation controls
 const FileNavigation: React.FC = () => {
   const parseResults = useStore((state) => state.parseResults);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const selectedFile = useStore((state) => state.selectedFile);
+  const selectFile = useStore((state) => state.selectFile);
   const [editor] = useLexicalComposerContext();
 
   const fileCount = parseResults.length;
+  const currentFileIndex = parseResults.findIndex(
+    (file) => file.filename === selectedFile
+  );
   const currentFile = parseResults[currentFileIndex] || {
     filename: "No file loaded",
   };
 
   const navigateToPreviousFile = () => {
     if (currentFileIndex > 0) {
-      setCurrentFileIndex(currentFileIndex - 1);
+      selectFile(parseResults[currentFileIndex - 1].filename);
     }
   };
 
   const navigateToNextFile = () => {
     if (currentFileIndex < fileCount - 1) {
-      setCurrentFileIndex(currentFileIndex + 1);
+      selectFile(parseResults[currentFileIndex + 1].filename);
     }
   };
 
   // Load file content into editor when the selected file changes
   useEffect(() => {
-    if (parseResults.length > 0) {
-      const file = parseResults[currentFileIndex];
+    if (parseResults.length > 0 && selectedFile) {
+      const file = parseResults.find((file) => file.filename === selectedFile);
+
+      if (!file) return;
 
       // Update the editor content with the file contents
       editor.update(() => {
@@ -94,29 +100,33 @@ const FileNavigation: React.FC = () => {
           .split("\n")
           .filter((line) => line.trim()).length;
 
-        // Update store with total lines count
-        useStore.setState({
-          totalLines,
-          parsedLines: file.stats?.parsed || 0,
-        });
-
         // Update parse results with total line count if not already set
         if (!file.stats || file.stats.total === 0) {
-          const updatedParseResults = [...parseResults];
-          updatedParseResults[currentFileIndex].stats = {
-            total: totalLines,
-            parsed: file.stats?.parsed || 0,
-          };
-          useStore.setState({ parseResults: updatedParseResults });
+          useStore
+            .getState()
+            .setFileStats(file.filename, totalLines, file.stats?.parsed || 0);
+        }
+
+        // Extract timestamp from filename if possible, or use file timestamp
+        let timestamp = file.timestamp || Date.now();
+        const fileNameTimestampMatch = file.filename.match(/^(\d+)/);
+        if (fileNameTimestampMatch && fileNameTimestampMatch[1]) {
+          timestamp = parseInt(fileNameTimestampMatch[1], 10);
         }
 
         // Use our custom StatementTextNode instead of TextNode
-        const textNode = $createStatementTextNode(fileContent);
+        const textNode = $createStatementTextNode(
+          fileContent,
+          "",
+          "",
+          false,
+          timestamp
+        );
         paragraphNode.append(textNode);
         root.append(paragraphNode);
       });
     }
-  }, [currentFileIndex, parseResults, editor]);
+  }, [selectedFile, parseResults, editor]);
 
   return (
     <div className="flex items-center justify-between rounded-lg border-b px-4 py-2">
@@ -157,22 +167,8 @@ const FileNavigation: React.FC = () => {
 
 // EditorContent component for rendering the editor with parsed status
 const EditorContent: React.FC = () => {
-  const [isParsed, setIsParsed] = useState(false);
-  const parseResults = useStore((state) => state.parseResults);
-
-  // Update isParsed state when current file changes or parsed status changes
-  useEffect(() => {
-    if (parseResults.length > 0) {
-      const currentFile = parseResults[0];
-      setIsParsed(
-        currentFile.stats.total > 0 &&
-          currentFile.stats.parsed === currentFile.stats.total
-      );
-    }
-  }, [parseResults]);
-
   return (
-    <div className={`flex-1 relative ${isParsed ? "bg-blue-50" : ""}`}>
+    <div className="flex-1 relative">
       <RichTextPlugin
         contentEditable={
           <ContentEditable
@@ -200,7 +196,7 @@ const Editor: React.FC = () => {
         <div className="flex flex-col flex-grow overflow-hidden h-full">
           <FileNavigation />
           <EditorToolbar />
-          <ProgressBar />
+          <EditorProgressBar />
           <EditorContent />
         </div>
       </StatementProvider>

@@ -14,24 +14,28 @@ export type SerializedStatementTextNode = SerializedTextNode & {
   statementType: string;
   statementName: string;
   isParsed: boolean;
+  timestamp: number;
 };
 
 export class StatementTextNode extends TextNode {
   __statementType: string;
   __statementName: string;
   __isParsed: boolean;
+  __timestamp: number;
 
   constructor(
     text: string,
     statementType: string = "",
     statementName: string = "",
     isParsed: boolean = false,
+    timestamp: number = Date.now(),
     key?: NodeKey
   ) {
     super(text, key);
     this.__statementType = statementType;
     this.__statementName = statementName;
     this.__isParsed = isParsed;
+    this.__timestamp = timestamp;
   }
 
   static getType(): string {
@@ -44,6 +48,7 @@ export class StatementTextNode extends TextNode {
       node.__statementType,
       node.__statementName,
       node.__isParsed,
+      node.__timestamp,
       node.__key
     );
   }
@@ -69,15 +74,12 @@ export class StatementTextNode extends TextNode {
   }
 
   updateDOMStyles(dom: HTMLElement): void {
-    // Apply styling based on statement properties
-    if (this.__statementType) {
-      dom.style.backgroundColor = "rgba(0, 255, 0, 0.1)"; // Faint green background
-    } else {
-      dom.style.backgroundColor = "";
-    }
+    // Only apply background styling if the node is marked as parsed
     if (this.__isParsed) {
+      dom.style.backgroundColor = "rgba(0, 255, 0, 0.1)"; // Faint green background
       dom.style.color = "#2563eb"; // Blue text for parsed statements
     } else {
+      dom.style.backgroundColor = "";
       dom.style.color = "";
     }
   }
@@ -97,6 +99,11 @@ export class StatementTextNode extends TextNode {
     self.__isParsed = isParsed;
   }
 
+  setTimestamp(timestamp: number): void {
+    const self = this.getWritable();
+    self.__timestamp = timestamp;
+  }
+
   getStatementType(): string {
     return this.__statementType;
   }
@@ -109,6 +116,10 @@ export class StatementTextNode extends TextNode {
     return this.__isParsed;
   }
 
+  getTimestamp(): number {
+    return this.__timestamp;
+  }
+
   exportJSON(): SerializedStatementTextNode {
     const baseJSON = super.exportJSON() as SerializedTextNode;
     return {
@@ -117,6 +128,7 @@ export class StatementTextNode extends TextNode {
       statementType: this.__statementType,
       statementName: this.__statementName,
       isParsed: this.__isParsed,
+      timestamp: this.__timestamp,
     };
   }
 
@@ -127,7 +139,8 @@ export class StatementTextNode extends TextNode {
       serializedNode.text,
       serializedNode.statementType,
       serializedNode.statementName,
-      serializedNode.isParsed
+      serializedNode.isParsed,
+      serializedNode.timestamp
     );
     node.setFormat(serializedNode.format);
     node.setDetail(serializedNode.detail);
@@ -141,10 +154,17 @@ export function $createStatementTextNode(
   text: string,
   statementType: string = "",
   statementName: string = "",
-  isParsed: boolean = false
+  isParsed: boolean = false,
+  timestamp: number = Date.now()
 ): StatementTextNode {
   return $applyNodeReplacement(
-    new StatementTextNode(text, statementType, statementName, isParsed)
+    new StatementTextNode(
+      text,
+      statementType,
+      statementName,
+      isParsed,
+      timestamp
+    )
   );
 }
 

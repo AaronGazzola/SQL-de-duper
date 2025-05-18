@@ -43,7 +43,7 @@ export default function Sidebar() {
   const isExpanded = isMobile || open;
   const [copying, setCopying] = useState(false);
 
-  // Calculate progress percentage
+  // Calculate progress percentage for all files
   const progress =
     totalLines > 0 ? Math.round((parsedLines / totalLines) * 100) : 0;
 

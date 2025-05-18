@@ -26,6 +26,8 @@ export const useStore = create<{
   selectFile: (filename: string) => void;
   copyParsedSQL: () => Promise<void>;
   downloadParsedSQL: () => void;
+  setFileStats: (filename: string, total: number, parsed: number) => void;
+  setParseProgress: (filename: string, parsed: number) => void;
 }>()(
   persist(
     (set, get) => ({
@@ -42,6 +44,7 @@ export const useStore = create<{
         const { parseResults: existingParseResults } = get();
         const newParseResults: ParseResult[] = [...existingParseResults];
         let totalLinesCount = 0;
+        const parsedLinesCount = 0;
 
         // Process each file
         for (const file of files) {
@@ -75,11 +78,10 @@ export const useStore = create<{
         set((state) => ({
           parseResults: newParseResults,
           totalLines: state.totalLines + totalLinesCount,
-          parsedLines: state.parsedLines,
+          parsedLines: state.parsedLines + parsedLinesCount,
           selectedFile:
-            newParseResults.length > 0
-              ? newParseResults[0].filename
-              : state.selectedFile,
+            state.selectedFile ||
+            (newParseResults.length > 0 ? newParseResults[0].filename : null),
         }));
       },
 
@@ -104,6 +106,71 @@ export const useStore = create<{
       // Select file
       selectFile: (filename: string) => {
         set({ selectedFile: filename });
+      },
+
+      // Set file statistics
+      setFileStats: (filename: string, total: number, parsed: number) => {
+        set((state) => {
+          const updatedParseResults = [...state.parseResults];
+          const fileIndex = updatedParseResults.findIndex(
+            (file) => file.filename === filename
+          );
+
+          if (fileIndex !== -1) {
+            updatedParseResults[fileIndex].stats = {
+              total,
+              parsed,
+            };
+
+            // Calculate total lines and parsed lines across all files
+            const totalLinesAcrossFiles = updatedParseResults.reduce(
+              (sum, file) => sum + file.stats.total,
+              0
+            );
+            const parsedLinesAcrossFiles = updatedParseResults.reduce(
+              (sum, file) => sum + file.stats.parsed,
+              0
+            );
+
+            return {
+              parseResults: updatedParseResults,
+              totalLines: totalLinesAcrossFiles,
+              parsedLines: parsedLinesAcrossFiles,
+            };
+          }
+          return state;
+        });
+      },
+
+      // Set parse progress for a specific file
+      setParseProgress: (filename: string, parsed: number) => {
+        set((state) => {
+          const updatedParseResults = [...state.parseResults];
+          const fileIndex = updatedParseResults.findIndex(
+            (file) => file.filename === filename
+          );
+
+          if (fileIndex !== -1) {
+            // Get current total lines for this file
+            const total = updatedParseResults[fileIndex].stats.total;
+
+            // Ensure parsed doesn't exceed total
+            const validatedParsed = Math.min(parsed, total);
+
+            // Calculate difference in parsed lines
+            const oldParsed = updatedParseResults[fileIndex].stats.parsed;
+            const parsedDifference = validatedParsed - oldParsed;
+
+            // Update file stats
+            updatedParseResults[fileIndex].stats.parsed = validatedParsed;
+
+            return {
+              parseResults: updatedParseResults,
+              parsedLines: state.parsedLines + parsedDifference,
+            };
+          }
+          return state;
+        });
       },
 
       // Copy parsed SQL to clipboard

@@ -2,6 +2,7 @@
 "use client";
 
 import {
+  $createStatementTextNode,
   $isStatementTextNode,
   StatementTextNode,
 } from "@/components/StatementTextNode";
@@ -63,6 +64,7 @@ const StatementProvider: React.FC<{ children: React.ReactNode }> = ({
   const [selectedStatementName, setSelectedStatementName] = useState<
     string | null
   >(null);
+  const parseResults = useStore((state) => state.parseResults);
 
   // Function to update the statement type of the selected text node
   const handleTypeChange = (value: string) => {
@@ -71,26 +73,55 @@ const StatementProvider: React.FC<{ children: React.ReactNode }> = ({
     editor.update(() => {
       const selection = $getSelection();
 
-      if ($isRangeSelection(selection)) {
-        const nodes = selection.getNodes();
+      if ($isRangeSelection(selection) && !selection.isCollapsed()) {
+        const selectedText = selection.getTextContent();
 
-        // Update all statement text nodes in the selection
-        nodes.forEach((node) => {
-          if ($isStatementTextNode(node)) {
-            node.setStatementType(value);
+        // Extract statement name from the text content
+        const nameRegex = new RegExp(
+          `(CREATE|ALTER)\\s+${value}\\s+([\\w\\.]+)`,
+          "i"
+        );
+        const match = selectedText.match(nameRegex);
+        let statementName = "";
 
-            // Generate a statement name if not already set
-            if (!node.getStatementName()) {
-              const statementText = node.getTextContent().trim();
-              const firstLine = statementText.split("\n")[0];
-              const shortName =
-                firstLine.substring(0, 30) +
-                (firstLine.length > 30 ? "..." : "");
-              node.setStatementName(shortName);
-              setSelectedStatementName(shortName);
-            }
+        if (match && match[2]) {
+          statementName = match[2];
+        } else {
+          // Fallback for when statement name cannot be extracted from SQL
+          statementName = `Unnamed_${value}_${Math.floor(
+            Math.random() * 1000
+          )}`;
+        }
+
+        // Get current file and extract timestamp
+        const currentFile = parseResults.length > 0 ? parseResults[0] : null;
+        let timestamp = Date.now();
+
+        // Try to extract timestamp from filename (assuming it's at the start)
+        if (currentFile?.filename) {
+          const fileNameTimestampMatch = currentFile.filename.match(/^(\d+)/);
+          if (fileNameTimestampMatch && fileNameTimestampMatch[1]) {
+            timestamp = parseInt(fileNameTimestampMatch[1], 10);
+          } else if (currentFile.timestamp) {
+            // Use file timestamp as fallback
+            timestamp = currentFile.timestamp;
           }
-        });
+        }
+
+        // Create a new statement node with the selected text
+        const statementNode = $createStatementTextNode(
+          selectedText,
+          value,
+          statementName,
+          false, // Not parsed by default
+          timestamp
+        );
+
+        // Replace the selection with the new statement node
+        selection.insertNodes([statementNode]);
+
+        // Update the statement name state
+        setSelectedStatementName(statementName);
       }
     });
 
@@ -160,9 +191,28 @@ const StatementProvider: React.FC<{ children: React.ReactNode }> = ({
                     .getTextContent()
                     .split("\n")
                     .filter((line) => line.trim()).length;
+
+                  // Update the parsed lines count in store
                   useStore.setState((state) => ({
                     parsedLines: state.parsedLines + lineCount,
                   }));
+
+                  // Update the parsed lines count in the current file
+                  const currentFile =
+                    parseResults.length > 0 ? parseResults[0] : null;
+                  if (currentFile) {
+                    const updatedParseResults = [...parseResults];
+                    const fileIndex = updatedParseResults.findIndex(
+                      (file) => file.filename === currentFile.filename
+                    );
+
+                    if (fileIndex !== -1) {
+                      updatedParseResults[fileIndex].stats.parsed += lineCount;
+                      useStore.setState({
+                        parseResults: updatedParseResults,
+                      });
+                    }
+                  }
                 }
               }
             });
@@ -174,7 +224,7 @@ const StatementProvider: React.FC<{ children: React.ReactNode }> = ({
       },
       COMMAND_PRIORITY_CRITICAL
     );
-  }, [editor]);
+  }, [editor, parseResults]);
 
   const contextValue = {
     hasSelection,

@@ -1,18 +1,26 @@
-// components/ProgressBar.tsx
+// components/EditorProgressBar.tsx
 "use client";
+import { $isStatementTextNode } from "@/components/StatementTextNode";
 import { useStatementEditor } from "@/hooks/editor.hooks";
 import { useStore } from "@/providers/store";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $getRoot } from "lexical";
 import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 
-const ProgressBar: React.FC = () => {
+const EditorProgressBar: React.FC = () => {
+  const [editor] = useLexicalComposerContext();
   const parseResults = useStore((state) => state.parseResults);
+  const selectedFile = useStore((state) => state.selectedFile);
+  const setParseProgress = useStore((state) => state.setParseProgress);
+  const [overrideParsed, setOverrideParsed] = useState(false);
   const { toggleAllParsed } = useStatementEditor();
-  const [allParsed, setAllParsed] = useState(false);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
 
-  // Get current file
-  const currentFile = parseResults[currentFileIndex] || {
+  // Find current file in parse results
+  const currentFile = parseResults.find(
+    (file) => file.filename === selectedFile
+  ) || {
+    filename: "No file loaded",
     stats: { total: 0, parsed: 0 },
   };
 
@@ -22,40 +30,60 @@ const ProgressBar: React.FC = () => {
       ? (currentFile.stats.parsed / currentFile.stats.total) * 100
       : 0;
 
-  // Update allParsed state when file changes or parsed status changes
+  const allParsed = currentFile.stats.parsed === currentFile.stats.total;
+
+  // Calculate actual parsed lines from editor content
   useEffect(() => {
-    const isParsed =
-      currentFile.stats.total > 0 &&
-      currentFile.stats.parsed === currentFile.stats.total;
-    setAllParsed(isParsed);
-  }, [
-    currentFile.stats.parsed,
-    currentFile.stats.total,
-    currentFileIndex,
-    parseResults,
-  ]);
+    // Only calculate if we're not overriding the parsed status
+    if (!overrideParsed && selectedFile) {
+      editor.getEditorState().read(() => {
+        const root = $getRoot();
+        let parsedLines = 0;
+
+        // Traverse all nodes in the editor
+        root.getChildren().forEach((paragraphNode) => {
+          paragraphNode.getChildren().forEach((node) => {
+            if ($isStatementTextNode(node) && node.getIsParsed()) {
+              // Count lines in parsed statement nodes
+              const content = node.getTextContent();
+              const lines = content.split("\n").length;
+              parsedLines += lines;
+            }
+          });
+        });
+
+        // Update the store with the calculated parsed lines
+        if (selectedFile) {
+          setParseProgress(selectedFile, parsedLines);
+        }
+      });
+    }
+  }, [editor, selectedFile, overrideParsed, setParseProgress]);
 
   // Handle toggle all parsed
   const handleToggleAllParsed = () => {
-    const newParsedState = !allParsed;
-    setAllParsed(newParsedState);
-    toggleAllParsed(newParsedState);
+    if (allParsed && overrideParsed) {
+      // Revert to calculating from editor content
+      setOverrideParsed(false);
+      toggleAllParsed(false);
+    } else {
+      // Mark all as parsed
+      setOverrideParsed(true);
+      toggleAllParsed(true);
+
+      // Update store directly
+      if (selectedFile) {
+        setParseProgress(selectedFile, currentFile.stats.total);
+      }
+    }
   };
 
-  // Update current file index when it changes in store
-  useEffect(() => {
-    const storeFileIndex = 0; // This should match with what you use in Editor.tsx
-    if (storeFileIndex !== currentFileIndex) {
-      setCurrentFileIndex(storeFileIndex);
-    }
-  }, [currentFileIndex, parseResults]);
-
-  if (parseResults.length === 0) {
+  if (!selectedFile) {
     return null;
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2">
+    <div className="flex items-center gap-2 px-4 py-2 border-t border-b">
       <div className="flex-grow h-2 bg-gray-200 rounded-full overflow-hidden">
         <div
           className="h-full bg-blue-500 transition-all duration-300"
@@ -78,4 +106,4 @@ const ProgressBar: React.FC = () => {
   );
 };
 
-export default ProgressBar;
+export default EditorProgressBar;
