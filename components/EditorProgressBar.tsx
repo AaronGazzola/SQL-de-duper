@@ -1,6 +1,7 @@
 // components/EditorProgressBar.tsx
 "use client";
 
+import { Progress } from "@/components/ui/progress";
 import { useStore } from "@/providers/store";
 import { Check, RotateCcw } from "lucide-react";
 import { useMemo } from "react";
@@ -22,15 +23,12 @@ const EditorProgressBar: React.FC = () => {
     [editorFiles, selectedFile]
   );
 
-  // Calculate progress percentage based on the file stats from the store
-  const parsedPercentage = useMemo(() => {
-    if (!currentEditorFile || currentEditorFile.stats.total === 0) {
-      return 0;
-    }
-    return Math.round(
-      (currentEditorFile.stats.parsed / currentEditorFile.stats.total) * 100
-    );
-  }, [currentEditorFile]);
+  const fileProgress =
+    currentEditorFile.stats.total > 0
+      ? Math.round(
+          (currentEditorFile.stats.parsed / currentEditorFile.stats.total) * 100
+        )
+      : 0;
 
   // Get current file parsed status
   const isParsed = currentEditorFile?.isParsed || false;
@@ -54,7 +52,7 @@ const EditorProgressBar: React.FC = () => {
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-t border-b">
+    <div className="flex items-center gap-7 px-4 py-2 border-t border-b">
       <button
         onClick={handleResetFile}
         className="p-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -62,19 +60,18 @@ const EditorProgressBar: React.FC = () => {
       >
         <RotateCcw size={18} />
       </button>
-      <div className="flex-grow h-2 bg-gray-200 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-blue-500 transition-all duration-300"
-          style={{ width: `${parsedPercentage}%` }}
-        ></div>
-      </div>
+      <Progress
+        value={fileProgress}
+        className="h-1 w-full"
+      />
       <div className="text-sm text-gray-600">
-        {parsedPercentage}% parsed
+        <p className="whitespace-nowrap">{fileProgress}% parsed</p>
+
         {currentEditorFile.stats.total > 0 && (
-          <span className="ml-1 text-xs text-gray-500">
+          <p className="ml-1 text-xs text-gray-500 whitespace-nowrap">
             ({currentEditorFile.stats.parsed}/{currentEditorFile.stats.total}{" "}
             lines)
-          </span>
+          </p>
         )}
       </div>
       <button

@@ -7,6 +7,7 @@ import {
   Filter,
   Statement,
   StatementGroup,
+  StoreState,
 } from "@/types/app.types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -18,28 +19,17 @@ const DEFAULT_FILTERS: Filter = {
   showUnparsed: false,
 };
 
-export const useStore = create<{
-  statements: StatementGroup[];
-  filters: Filter;
-  statementTypes: string[];
-  files: FileData[]; // Original uploaded files
-  editorFiles: FileData[]; // Editable copies for the editor
-  totalLines: number;
-  parsedLines: number;
-  selectedFile: string | null;
-  onFilesDrop: (files: File[]) => Promise<void>;
-  setFilters: (filters: Filter) => void;
-  resetStore: () => void;
-  selectFile: (filename: string) => void;
-  copyParsedSQL: () => Promise<void>;
-  downloadParsedSQL: () => void;
-  setFileStats: (filename: string, total: number, parsed: number) => void;
-  setParseProgress: (filename: string, parsed: number) => void;
-  toggleFileParsed: (filename: string, isParsed: boolean) => void;
-  addStatement: (name: string, content: string, fileName: string) => void;
-  resetFile: (filename: string) => void;
-  updateFileContent: (filename: string, content: string) => void;
-}>()(
+export const useStore = create<
+  StoreState & {
+    isDialogOpen: boolean;
+    sqlAnalysis: {
+      includedStatements: { name: string; timestamp: number }[];
+      omittedStatements: { name: string; timestamp: number }[];
+    };
+    openDialog: () => void;
+    closeDialog: () => void;
+  }
+>()(
   persist(
     (set, get) => ({
       statements: [],
@@ -50,6 +40,15 @@ export const useStore = create<{
       totalLines: 0,
       parsedLines: 0,
       selectedFile: null,
+      isDialogOpen: false,
+      sqlAnalysis: {
+        includedStatements: [],
+        omittedStatements: [],
+      },
+
+      // Dialog control
+      openDialog: () => set({ isDialogOpen: true }),
+      closeDialog: () => set({ isDialogOpen: false }),
 
       // Handle file drops
       onFilesDrop: async (files: File[]) => {
@@ -130,6 +129,11 @@ export const useStore = create<{
           totalLines: 0,
           parsedLines: 0,
           selectedFile: null,
+          isDialogOpen: false,
+          sqlAnalysis: {
+            includedStatements: [],
+            omittedStatements: [],
+          },
         });
       },
 
@@ -284,13 +288,46 @@ export const useStore = create<{
         const { statements } = get();
         if (statements.length === 0) return;
 
-        const parsedSQL = statements
-          .map((group) => group.content.content)
+        // Get earliest version timestamps for each statement group
+        const statementsWithTimestamps = statements.map((group) => {
+          // Get the earliest timestamp from all versions including current content
+          const allVersions = [group.content, ...group.versions];
+          const earliestTimestamp = Math.min(
+            ...allVersions.map((v) => v.timestamp)
+          );
+          return {
+            group,
+            earliestTimestamp,
+          };
+        });
+
+        // Sort by earliest timestamp (ascending)
+        statementsWithTimestamps.sort(
+          (a, b) => a.earliestTimestamp - b.earliestTimestamp
+        );
+
+        // Extract the current content (latest version) from each group in the sorted order
+        const parsedSQL = statementsWithTimestamps
+          .map((item) => item.group.content.content)
           .join("\n\n");
 
         try {
           await navigator.clipboard.writeText(parsedSQL);
           console.log("SQL copied to clipboard");
+
+          // Create analysis for the dialog
+          const analysis = {
+            includedStatements: statementsWithTimestamps.map((item) => ({
+              name: item.group.content.name,
+              timestamp: item.earliestTimestamp,
+            })),
+            omittedStatements: [],
+          };
+
+          set({
+            sqlAnalysis: analysis,
+            isDialogOpen: true,
+          });
         } catch (error) {
           console.error("Failed to copy SQL:", error);
         }
@@ -301,8 +338,27 @@ export const useStore = create<{
         const { statements } = get();
         if (statements.length === 0) return;
 
-        const parsedSQL = statements
-          .map((group) => group.content.content)
+        // Get earliest version timestamps for each statement group
+        const statementsWithTimestamps = statements.map((group) => {
+          // Get the earliest timestamp from all versions including current content
+          const allVersions = [group.content, ...group.versions];
+          const earliestTimestamp = Math.min(
+            ...allVersions.map((v) => v.timestamp)
+          );
+          return {
+            group,
+            earliestTimestamp,
+          };
+        });
+
+        // Sort by earliest timestamp (ascending)
+        statementsWithTimestamps.sort(
+          (a, b) => a.earliestTimestamp - b.earliestTimestamp
+        );
+
+        // Extract the current content (latest version) from each group in the sorted order
+        const parsedSQL = statementsWithTimestamps
+          .map((item) => item.group.content.content)
           .join("\n\n");
 
         const blob = new Blob([parsedSQL], { type: "text/plain" });
@@ -314,6 +370,20 @@ export const useStore = create<{
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+
+        // Create analysis for the dialog
+        const analysis = {
+          includedStatements: statementsWithTimestamps.map((item) => ({
+            name: item.group.content.name,
+            timestamp: item.earliestTimestamp,
+          })),
+          omittedStatements: [],
+        };
+
+        set({
+          sqlAnalysis: analysis,
+          isDialogOpen: true,
+        });
       },
 
       // Add statement from editor
