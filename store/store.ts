@@ -1,4 +1,4 @@
-// providers/store.ts
+// store/store.ts
 "use client";
 
 import {
@@ -32,6 +32,7 @@ export const useStore = create<
     };
     openDialog: () => void;
     closeDialog: () => void;
+    deleteStatement: (versionId: string) => void;
   }
 >()(
   persist(
@@ -53,6 +54,83 @@ export const useStore = create<
       // Dialog control
       openDialog: () => set({ isDialogOpen: true }),
       closeDialog: () => set({ isDialogOpen: false }),
+
+      // Delete statement version by version ID
+      deleteStatement: (versionId: string) => {
+        set((state) => {
+          const updatedStatements = [...state.statements];
+
+          // Find which statement group contains this version
+          let targetGroupIndex = -1;
+          let isCurrentContent = false;
+
+          // First check if the version is a current content in any group
+          targetGroupIndex = updatedStatements.findIndex(
+            (group) => group.content.id === versionId
+          );
+
+          if (targetGroupIndex !== -1) {
+            isCurrentContent = true;
+          } else {
+            // If not found in current content, look in versions arrays
+            for (let i = 0; i < updatedStatements.length; i++) {
+              const versionIndex = updatedStatements[i].versions.findIndex(
+                (version) => version.id === versionId
+              );
+              if (versionIndex !== -1) {
+                targetGroupIndex = i;
+                break;
+              }
+            }
+          }
+
+          // If version not found in any group, return unchanged state
+          if (targetGroupIndex === -1) return state;
+
+          const group = updatedStatements[targetGroupIndex];
+
+          // Handle deletion based on whether it's current content or a version
+          if (isCurrentContent) {
+            // If there are no other versions, delete the entire group
+            if (group.versions.length === 0) {
+              updatedStatements.splice(targetGroupIndex, 1);
+              return { statements: updatedStatements };
+            }
+
+            // Otherwise, promote the most recent version to be the new content
+            const sortedVersions = [...group.versions].sort(
+              (a, b) => b.timestamp - a.timestamp
+            );
+
+            const newContent = sortedVersions[0];
+
+            // Remove the promoted version from versions array
+            const updatedVersions = group.versions.filter(
+              (v) => v.id !== newContent.id
+            );
+
+            // Update the group
+            updatedStatements[targetGroupIndex] = {
+              ...group,
+              content: newContent,
+              versions: updatedVersions,
+            };
+          } else {
+            // Just remove the version from the versions array
+            const updatedVersions = group.versions.filter(
+              (v) => v.id !== versionId
+            );
+
+            // Update the group with filtered versions
+            updatedStatements[targetGroupIndex] = {
+              ...group,
+              versions: updatedVersions,
+            };
+          }
+
+          return { statements: updatedStatements };
+        });
+      },
 
       // Handle file drops
       onFilesDrop: async (files: File[]) => {

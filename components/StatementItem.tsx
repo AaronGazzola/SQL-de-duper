@@ -6,6 +6,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Pagination,
   PaginationContent,
@@ -15,8 +16,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatTimestamp, getDisplayName } from "@/lib/utils";
+import { useStore } from "@/store/store";
 import { Statement } from "@/types/app.types";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
 
 export function StatementItem({
@@ -28,6 +37,7 @@ export function StatementItem({
 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const siblingCount = 1; // Controls number of pages shown before truncation
+  const deleteStatement = useStore((state) => state.deleteStatement);
 
   // We use the versions array passed as a prop instead of recalculating
   const sortedVersions = versions.sort((a, b) => b.timestamp - a.timestamp); // Ensure newest first
@@ -38,6 +48,20 @@ export function StatementItem({
   // Handle page change
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
+  };
+
+  // Handle delete button click
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent accordion toggle
+
+    // Delete the current version being viewed
+    deleteStatement(currentStatement.id);
+
+    // If we just deleted the current page and it was the last page,
+    // go back one page
+    if (currentPage > 1 && currentPage > totalVersions - 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   // Generate page numbers with configurable truncation
@@ -103,24 +127,47 @@ export function StatementItem({
       className="border rounded-lg mb-2 overflow-hidden"
     >
       <div className="relative">
-        <AccordionTrigger className="px-4 py-3 hover:bg-gray-50 flex-1 border-b rounded-lg">
-          <div className="flex flex-col items-start text-left">
-            <div className="flex items-center gap-2 mb-1">
-              <Badge
-                variant="outline"
-                className="text-xs"
-              >
-                {getDisplayName(statement.type)}
-              </Badge>
-              <span className="font-medium">{statement.name}</span>
-              {totalVersions > 1 && (
+        <AccordionTrigger
+          asChild
+          className="px-4 py-3 hover:bg-gray-50 flex-1 border-b rounded-lg"
+        >
+          <div className="flex flex-col items-start text-left w-full">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2 mb-1">
                 <Badge
-                  variant="secondary"
-                  className="ml-2 text-xs"
+                  variant="outline"
+                  className="text-xs"
                 >
-                  {totalVersions} versions
+                  {getDisplayName(statement.type)}
                 </Badge>
-              )}
+                <span className="font-medium">{statement.name}</span>
+                {totalVersions > 1 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 text-xs"
+                  >
+                    {totalVersions} versions
+                  </Badge>
+                )}
+              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-gray-500 hover:text-red-500 hover:bg-red-50"
+                      onClick={handleDeleteClick}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete statement</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Delete version</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </AccordionTrigger>
