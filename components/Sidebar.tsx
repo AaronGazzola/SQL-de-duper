@@ -69,7 +69,11 @@ export default function Sidebar() {
               )}
             >
               {isExpanded && (
-                <h2 className="font-bold text-lg">SQL Squasher</h2>
+                <div className="flex flex-col w-full">
+                  <h2 className="font-bold text-xl">SQL Squasher</h2>
+                  <h4 className="font-medium text-base">By Az Anything</h4>
+                  <p className="text-sm">(Aaron Gazzola)</p>
+                </div>
               )}
               <SidebarTrigger>
                 <Button
