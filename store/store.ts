@@ -23,7 +23,11 @@ export const useStore = create<
   StoreState & {
     isDialogOpen: boolean;
     sqlAnalysis: {
-      includedStatements: { name: string; timestamp: number }[];
+      includedStatements: {
+        name: string;
+        timestamp: number;
+        position: number;
+      }[];
       omittedStatements: { name: string; timestamp: number }[];
     };
     openDialog: () => void;
@@ -285,41 +289,98 @@ export const useStore = create<
 
       // Copy parsed SQL to clipboard
       copyParsedSQL: async () => {
-        const { statements } = get();
+        const { statements, files } = get();
         if (statements.length === 0) return;
 
-        // Get earliest version timestamps for each statement group
-        const statementsWithTimestamps = statements.map((group) => {
+        // Track original positions of statements in their files
+        const statementsWithPosition = statements.map((group) => {
           // Get the earliest timestamp from all versions including current content
           const allVersions = [group.content, ...group.versions];
-          const earliestTimestamp = Math.min(
-            ...allVersions.map((v) => v.timestamp)
+          const earliestVersion = allVersions.reduce((earliest, current) =>
+            current.timestamp < earliest.timestamp ? current : earliest
           );
+
+          // Find the original file content to determine position
+          const file = files.find(
+            (f) => f.filename === earliestVersion.fileName
+          );
+          let position = 0;
+
+          if (file?.content) {
+            // Find position of this statement in the original file
+            position = file.content.indexOf(earliestVersion.content);
+            if (position === -1) position = Infinity; // If not found, put at the end
+          }
+
           return {
             group,
-            earliestTimestamp,
+            earliestTimestamp: earliestVersion.timestamp,
+            position: position,
+            fileName: earliestVersion.fileName,
           };
         });
 
-        // Sort by earliest timestamp (ascending)
-        statementsWithTimestamps.sort(
-          (a, b) => a.earliestTimestamp - b.earliestTimestamp
-        );
+        // Sort by earliest timestamp (ascending), then by position in file
+        statementsWithPosition.sort((a, b) => {
+          if (a.earliestTimestamp !== b.earliestTimestamp) {
+            return a.earliestTimestamp - b.earliestTimestamp;
+          }
+          // If same timestamp and same file, sort by position in file
+          if (a.fileName === b.fileName) {
+            return a.position - b.position;
+          }
+          // If different files but same timestamp, keep original order
+          return 0;
+        });
 
-        // Extract the current content (latest version) from each group in the sorted order
-        const parsedSQL = statementsWithTimestamps
-          .map((item) => item.group.content.content)
+        // Format SQL with comments for each statement
+        const formattedSQL = statementsWithPosition
+          .map((item) => {
+            const group = item.group;
+            const allVersions = [group.content, ...group.versions];
+
+            // Sort versions by timestamp (oldest first)
+            allVersions.sort((a, b) => a.timestamp - b.timestamp);
+
+            // Create a unique set of versions to prevent duplicate comments
+            // This can happen when the current content is also the latest version
+            const uniqueVersions: Statement[] = [];
+            const seenHashes = new Set<string>();
+
+            allVersions.forEach((version) => {
+              // Create a unique identifier for this version
+              const versionKey = `${version.timestamp}_${version.fileName}`;
+              if (!seenHashes.has(versionKey)) {
+                seenHashes.add(versionKey);
+                uniqueVersions.push(version);
+              }
+            });
+
+            // Create comments for the statement including all unique version info
+            const comments = uniqueVersions
+              .map((version) => {
+                const date = new Date(version.timestamp)
+                  .toISOString()
+                  .split("T")[0];
+                return `-- Version from ${date} - File: ${version.fileName}`;
+              })
+              .join("\n");
+
+            // Return the commented statement with the current content
+            return `${comments}\n${group.content.content}`;
+          })
           .join("\n\n");
 
         try {
-          await navigator.clipboard.writeText(parsedSQL);
+          await navigator.clipboard.writeText(formattedSQL);
           console.log("SQL copied to clipboard");
 
           // Create analysis for the dialog
           const analysis = {
-            includedStatements: statementsWithTimestamps.map((item) => ({
+            includedStatements: statementsWithPosition.map((item) => ({
               name: item.group.content.name,
               timestamp: item.earliestTimestamp,
+              position: item.position,
             })),
             omittedStatements: [],
           };
@@ -335,33 +396,89 @@ export const useStore = create<
 
       // Download parsed SQL
       downloadParsedSQL: () => {
-        const { statements } = get();
+        const { statements, files } = get();
         if (statements.length === 0) return;
 
-        // Get earliest version timestamps for each statement group
-        const statementsWithTimestamps = statements.map((group) => {
+        // Track original positions of statements in their files
+        const statementsWithPosition = statements.map((group) => {
           // Get the earliest timestamp from all versions including current content
           const allVersions = [group.content, ...group.versions];
-          const earliestTimestamp = Math.min(
-            ...allVersions.map((v) => v.timestamp)
+          const earliestVersion = allVersions.reduce((earliest, current) =>
+            current.timestamp < earliest.timestamp ? current : earliest
           );
+
+          // Find the original file content to determine position
+          const file = files.find(
+            (f) => f.filename === earliestVersion.fileName
+          );
+          let position = 0;
+
+          if (file?.content) {
+            // Find position of this statement in the original file
+            position = file.content.indexOf(earliestVersion.content);
+            if (position === -1) position = Infinity; // If not found, put at the end
+          }
+
           return {
             group,
-            earliestTimestamp,
+            earliestTimestamp: earliestVersion.timestamp,
+            position: position,
+            fileName: earliestVersion.fileName,
           };
         });
 
-        // Sort by earliest timestamp (ascending)
-        statementsWithTimestamps.sort(
-          (a, b) => a.earliestTimestamp - b.earliestTimestamp
-        );
+        // Sort by earliest timestamp (ascending), then by position in file
+        statementsWithPosition.sort((a, b) => {
+          if (a.earliestTimestamp !== b.earliestTimestamp) {
+            return a.earliestTimestamp - b.earliestTimestamp;
+          }
+          // If same timestamp and same file, sort by position in file
+          if (a.fileName === b.fileName) {
+            return a.position - b.position;
+          }
+          // If different files but same timestamp, keep original order
+          return 0;
+        });
 
-        // Extract the current content (latest version) from each group in the sorted order
-        const parsedSQL = statementsWithTimestamps
-          .map((item) => item.group.content.content)
+        // Format SQL with comments for each statement
+        const formattedSQL = statementsWithPosition
+          .map((item) => {
+            const group = item.group;
+            const allVersions = [group.content, ...group.versions];
+
+            // Sort versions by timestamp (oldest first)
+            allVersions.sort((a, b) => a.timestamp - b.timestamp);
+
+            // Create a unique set of versions to prevent duplicate comments
+            // This can happen when the current content is also the latest version
+            const uniqueVersions: Statement[] = [];
+            const seenHashes = new Set<string>();
+
+            allVersions.forEach((version) => {
+              // Create a unique identifier for this version
+              const versionKey = `${version.timestamp}_${version.fileName}`;
+              if (!seenHashes.has(versionKey)) {
+                seenHashes.add(versionKey);
+                uniqueVersions.push(version);
+              }
+            });
+
+            // Create comments for the statement including all unique version info
+            const comments = uniqueVersions
+              .map((version) => {
+                const date = new Date(version.timestamp)
+                  .toISOString()
+                  .split("T")[0];
+                return `-- Version from ${date} - File: ${version.fileName}`;
+              })
+              .join("\n");
+
+            // Return the commented statement with the current content
+            return `${comments}\n${group.content.content}`;
+          })
           .join("\n\n");
 
-        const blob = new Blob([parsedSQL], { type: "text/plain" });
+        const blob = new Blob([formattedSQL], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -373,9 +490,10 @@ export const useStore = create<
 
         // Create analysis for the dialog
         const analysis = {
-          includedStatements: statementsWithTimestamps.map((item) => ({
+          includedStatements: statementsWithPosition.map((item) => ({
             name: item.group.content.name,
             timestamp: item.earliestTimestamp,
+            position: item.position,
           })),
           omittedStatements: [],
         };

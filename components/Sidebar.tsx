@@ -2,13 +2,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import {
   Sidebar as ShadcnSidebar,
@@ -45,9 +38,6 @@ export default function Sidebar() {
     downloadParsedSQL,
     selectedFile,
     selectFile,
-    isDialogOpen,
-    closeDialog,
-    sqlAnalysis,
   } = useStore();
 
   const isExpanded = isMobile || open;
@@ -241,66 +231,6 @@ export default function Sidebar() {
           )}
         </SidebarContent>
       </ShadcnSidebar>
-
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={closeDialog}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>SQL File Analysis</DialogTitle>
-            <DialogDescription>
-              A summary of the SQL statements included in your export
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-medium text-sm">
-                Included Statements (ordered by earliest version)
-              </h3>
-              {sqlAnalysis.includedStatements.length > 0 ? (
-                <div className="mt-2 text-sm border rounded-md divide-y">
-                  {sqlAnalysis.includedStatements.map((statement, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2 flex justify-between"
-                    >
-                      <span className="font-medium">{statement.name}</span>
-                      <span className="text-gray-500 text-xs">
-                        {new Date(statement.timestamp).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 mt-1">
-                  No statements included
-                </p>
-              )}
-            </div>
-
-            {sqlAnalysis.omittedStatements.length > 0 && (
-              <div>
-                <h3 className="font-medium text-sm">Omitted Statements</h3>
-                <div className="mt-2 text-sm border rounded-md divide-y">
-                  {sqlAnalysis.omittedStatements.map((statement, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2 flex justify-between"
-                    >
-                      <span className="font-medium">{statement.name}</span>
-                      <span className="text-gray-500 text-xs">
-                        {new Date(statement.timestamp).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

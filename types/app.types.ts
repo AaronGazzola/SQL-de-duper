@@ -47,7 +47,6 @@ export interface StoreState {
   totalLines: number;
   parsedLines: number;
   selectedFile: string | null;
-
   // Actions
   onFilesDrop: (files: File[]) => Promise<void>;
   setFilters: (filters: Filter) => void;
